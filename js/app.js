@@ -1,5 +1,6 @@
 import { PLACES, CATEGORIES, SLOTS, hours } from './data.js';
-import { searchPlaces } from './osm.js';
+import { searchPlaces, districtLabel, arrondissement } from './osm.js';
+import { photoKey, resolvePhotos, mapTile } from './photos.js';
 import { placeMatches, nameMatches } from './match.js';
 import { encodeTrip, decodeTrip, shareUrl, codeFromHash } from './share.js';
 import {
@@ -133,21 +134,26 @@ function weekSummary(h) {
   return groups.map((g) => `${DAY_SHORT[g.from]}${g.to !== g.from ? `–${DAY_SHORT[g.to]}` : ''} ${g.l}`).join(' · ');
 }
 
+let searchSeq = 0;
 async function searchAndShow() {
   const q = $('#c-query').value.trim();
   const out = $('#c-results');
   if (q.length < 2) return;
+  const seq = ++searchSeq;
   const local = allPlaces().filter((p) => placeMatches(q, p));
   const localHtml = local.map((p) => `<div class="found">
+      ${photoBox(p)}
       <h4>${(CATEGORIES[p.category] || CATEGORIES.monumento).icon} ${esc(p.name)}</h4>
+      ${addressLine(p)}
       <p class="muted small">Ya está en la app con su horario y aforo.</p>
       ${state.selected[p.id] ? '<span class="tag ok">✓ Elegido</span>' : `<button class="btn small" data-action="select-found" data-id="${esc(p.id)}">✓ Lo quiero</button>`}
     </div>`).join('');
-  out.innerHTML = `${localHtml}<p class="muted">🔎 Buscando "${esc(q)}" en el mapa…</p>`;
+  out.innerHTML = `${localHtml}<p class="muted" id="c-status">🔎 Buscando "${esc(q)}" en el mapa…</p>`;
+  hydratePhotos(out);
   const month = Number(splitDateTime(state.trip.arrival).date?.slice(5, 7)) - 1;
   try {
-    let found = await searchPlaces(`${q}, Paris`, month);
-    if (!found.length) found = await searchPlaces(q, month);
+    let found = await searchPlaces(q, month, (msg) => { const st = $('#c-status'); if (st && seq === searchSeq) st.textContent = `🔎 ${msg}`; });
+    if (seq !== searchSeq) return; // ya hay una búsqueda más nueva
     const known = new Set(state.custom.map((p) => p.osm));
     found = found.filter((f, i) => found.findIndex((g) => g.osm === f.osm) === i)
       // Si OpenStreetMap devuelve un lugar que la app ya trae (mismo sitio), no lo repitas.
@@ -158,14 +164,69 @@ async function searchAndShow() {
       const tag = f.hoursSource === 'osm' ? '<span class="tag ok">Horario oficial (OpenStreetMap)</span>'
         : '<span class="tag warn">Horario típico estimado: verifícalo</span>';
       return `<div class="found">
+        ${photoBox(f)}
         <h4>${cat.icon} ${esc(f.name)}${f.localName && f.localName !== f.name ? ` <span class="muted small">(${esc(f.localName)})</span>` : ''}</h4>
-        <p class="muted small">${esc(f.address)} · ${cat.label} · ~${f.duration} min</p>
+        ${addressLine(f)}
+        <p class="muted small">${f.near ? `A ${f.near.meters} m de ${esc(f.near.name)} · ` : ''}${cat.label} · ~${f.duration} min · <a href="${gmapsLink(f)}" target="_blank" rel="noopener">📷 Ver fotos en Google Maps</a></p>
         <p class="week">🕘 ${weekSummary(f.hours)}<br>${tag}</p>
         ${known.has(f.osm) ? '<span class="tag ok">✓ Ya está en tu lista</span>' : `<button class="btn small" data-action="add-found" data-i="${i}">➕ Agregar</button>`}
       </div>`;
-    }).join('') : (local.length ? '' : '<p class="muted">No lo encontré. Prueba con otro nombre o agrégalo a mano.</p>'));
+    }).join('') : (local.length ? '' : '<p class="muted">No lo encontré. Prueba con otro nombre, agrega la zona (ej. "starbucks ópera") o agrégalo a mano.</p>'));
+    hydratePhotos(out);
   } catch {
+    if (seq !== searchSeq) return;
     out.innerHTML = `${localHtml}<p class="muted">No se pudo buscar (¿sin conexión?). Puedes agregarlo a mano.</p>`;
+  }
+}
+
+// ---------------- Fotos y dirección ----------------
+function addressLine(p) {
+  const n = p.arrondissement || arrondissement(p.postcode);
+  const parts = [p.address, p.postcode, n ? districtLabel(n) : (p.city && p.city !== 'Paris' ? p.city : '')].filter(Boolean);
+  return parts.length ? `<p class="addr">📍 ${esc(parts.join(' · '))}</p>` : '';
+}
+function gmapsLink(p) {
+  const q = [p.name, p.address, p.postcode, p.city || 'Paris'].filter(Boolean).join(', ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+}
+function tilesHtml(p) {
+  const t = mapTile(p.lat, p.lng);
+  let imgs = '';
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const url = t.url.replace(/\/(\d+)\/(\d+)\.png$/, (_, x, y) => `/${+x + dx}/${+y + dy}.png`);
+      imgs += `<img src="${url}" alt="" loading="lazy" referrerpolicy="no-referrer" style="left:${(dx + 1) * 256}px;top:${(dy + 1) * 256}px">`;
+    }
+  }
+  return `<div class="tiles" style="left:calc(50% - ${256 + t.left * 2.56}px);top:calc(50% - ${256 + t.top * 2.56}px)">${imgs}</div><span class="tile-pin">📍</span>`;
+}
+// Caja de foto: primero intenta una foto libre; si no hay, muestra el mapa del punto exacto.
+function photoBox(p) {
+  const key = photoKey(p);
+  const coords = `data-lat="${p.lat}" data-lng="${p.lng}"`;
+  if (!key) return `<div class="photo" ${coords}>${tilesHtml(p)}<span class="credit">Sin foto libre: mapa del lugar</span></div>`;
+  return `<div class="photo" data-key="${esc(key)}" ${coords}></div>`;
+}
+async function hydratePhotos(root) {
+  const els = [...root.querySelectorAll('.photo[data-key]:not([data-done])')];
+  if (!els.length) return;
+  els.forEach((el) => { el.dataset.done = '1'; });
+  let map = {};
+  try { map = await resolvePhotos(els.map((e) => e.dataset.key)); } catch { /* sin conexión */ }
+  for (const el of els) {
+    const p = { lat: Number(el.dataset.lat), lng: Number(el.dataset.lng) };
+    const fallback = () => { el.innerHTML = `${tilesHtml(p)}<span class="credit">Sin foto libre: mapa del lugar</span>`; };
+    const url = map[el.dataset.key];
+    if (!url) { fallback(); continue; }
+    const img = new Image();
+    img.alt = '';
+    img.loading = 'lazy';
+    img.referrerPolicy = 'no-referrer';
+    img.className = 'pic';
+    img.onerror = fallback;
+    img.src = url;
+    el.append(img);
+    el.insertAdjacentHTML('beforeend', '<span class="credit">Foto: Wikimedia Commons</span>');
   }
 }
 
@@ -229,7 +290,9 @@ function renderPlacesList() {
     return `<article class="card place ${sel ? 'selected' : ''} ${state.visited[p.id] ? 'visited' : ''}">
       <input type="checkbox" class="toggle" data-action="toggle" data-id="${esc(p.id)}" ${sel ? 'checked' : ''} aria-label="Quiero ir">
       <div>
+        ${photoBox(p)}
         <h3>${cat.icon} ${esc(p.name)} ${state.visited[p.id] ? '✅' : ''}</h3>
+        ${addressLine(p)}
         <div class="meta">
           <span>🕘 ${hoursText(p, date)}</span><span>⏱️ ${p.duration} min</span>
           <span>${closedDaysText(p)}</span>${p.booking ? '<span>🎟️ Reserva recomendada</span>' : ''}
@@ -237,6 +300,7 @@ function renderPlacesList() {
         </div>
         ${crowdBars(p, date, date === now.date ? now.min : null)}
         ${p.tip ? `<p class="tip">💡 ${esc(p.tip)}</p>` : ''}
+        <p class="small"><a href="${gmapsLink(p)}" target="_blank" rel="noopener">📷 Ver fotos y reseñas en Google Maps</a></p>
         ${p.custom ? `<p class="small muted">🕘 ${weekSummary(p.hours)} ${p.hoursSource === 'estimado' ? '<span class="tag warn">horario estimado</span>' : p.hoursSource === 'osm' ? '<span class="tag ok">OpenStreetMap</span>' : ''}${p.website ? ` · <a href="${esc(p.website)}" target="_blank" rel="noopener">web</a>` : ''}</p>` : ''}
         ${sel ? `<div class="controls">
           <select data-action="priority" data-id="${esc(p.id)}">${[3, 2, 1].map((v) => `<option value="${v}" ${sel.priority === v ? 'selected' : ''}>${PRIORITY_LABEL[v]}</option>`).join('')}</select>
@@ -255,6 +319,7 @@ function renderPlacesList() {
       </div>
     </article>`;
   }).join('');
+  hydratePhotos($('#places-list'));
 }
 
 // ---------------- Pestaña PLAN ----------------
@@ -313,6 +378,7 @@ function renderPlan() {
       return `<li><span class="time">${fmt(it.start)}</span><div>
         <div class="travel">🚶 ${it.travel.min} min ${it.travel.how} desde ${esc(it.from.name || 'el punto anterior')}${it.idle ? ` · esperas ${it.idle} min a que abra` : ''}</div>
         <strong><span class="num">${n}</span>${cat.icon} ${esc(p.name)}</strong>${it.fixed ? ' <span class="tag ok">📌 Reserva</span>' : ''}
+        ${addressLine(p)}
         ${(it.warnings || []).map((w) => `<div class="small" style="color:var(--max)">⚠️ ${esc(w)}</div>`).join('')}
         <div class="meta">${it.fixed ? '' : `<span>${badge(it.crowd)}</span>`}${it.wait ? `<span>⏳ ~${it.wait} min de fila</span>` : ''}<span>Hasta las ${fmt(it.end)}</span><span>${PRIORITY_LABEL[p.priority]}</span></div>
         <div class="row gap wrap">
@@ -402,8 +468,9 @@ function renderNow() {
     const rep = state.reports[p.id];
     const repFresh = rep && Date.now() - rep.at < 90 * 60000;
     return `<article class="card ${hero ? 'hero' : ''}">
-      ${hero ? '<div class="label">Te recomiendo ir ahora a</div>' : ''}
+      ${hero ? `<div class="label">Te recomiendo ir ahora a</div>${photoBox(p)}` : ''}
       <h3>${cat.icon} ${esc(p.name)} ${badge(r.ev.crowd)}</h3>
+      ${addressLine(p)}
       <p class="muted">${r.reasons.join(' · ')}</p>
       ${r.later ? `<p class="tip">⏰ ${r.later}</p>` : ''}
       <p class="muted small">Llegarías ${fmt(r.ev.arrive)} · saldrías ${fmt(r.ev.end)} · cierra ${fmt(hoursOn(p, now.date)[1])}</p>
@@ -421,6 +488,7 @@ function renderNow() {
     (open.length ? card(open[0], true) + open.slice(1).map((r) => card(r, false)).join('')
       : '<div class="card"><p>Ningún lugar de tu lista está abierto ahora mismo. 😴</p></div>') +
     (closed.length ? `<div class="card"><h3>Ahora no</h3><ul>${closed.map((r) => `<li><strong>${esc(r.place.name)}</strong> — <span class="muted">${r.reason}${r.best ? ` · mejor hoy a las ${fmt(r.best.start)}` : ''}</span></li>`).join('')}</ul></div>` : '');
+  hydratePhotos($('#now-list'));
 }
 
 // ---------------- Pestaña VIAJE ----------------
@@ -507,12 +575,12 @@ document.addEventListener('click', async (e) => {
       try { renderResults(out, await geocode(`${q}, Paris`), 'hotel'); } catch { out.innerHTML = '<p class="muted">No se pudo buscar (¿sin conexión?)</p>'; }
       break;
     }
-    case 'c-search': await searchAndShow(); break;
     case 'add-found': {
       const f = ui.found?.[Number(el.dataset.i)];
       if (!f) return;
       const id = `custom-${Date.now()}`;
-      state.custom.push({ ...f, id, custom: true });
+      const { near, ...clean } = f;
+      state.custom.push({ ...clean, id, custom: true });
       state.selected[id] = { priority: 2 };
       el.outerHTML = '<span class="tag ok">✓ Agregado a tu lista</span>';
       save(); renderPlacesList();

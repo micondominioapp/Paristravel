@@ -4,6 +4,8 @@ App web (funciona en el celular, sin instalar nada) para organizar un viaje a Pa
 
 - **📌 Lugares** – 32 lugares de París precargados (Torre Eiffel, Louvre, Orsay, Notre-Dame, Versalles, Montmartre, Catacumbas…) con horarios, días de cierre, duración sugerida y consejos.
   **Agregar cualquier otro lugar es automático:** escribes solo el nombre (“Café de Flore”, “Musée Carnavalet”) y la app busca en OpenStreetMap la ubicación, el tipo de lugar, el horario de cada día y qué tan popular es. Si OSM no tiene el horario, pone uno típico para ese tipo de lugar y lo marca como “estimado”. Los restaurantes y cafés que agregues se usan como tu almuerzo o cena.
+  Si buscas una cadena en una zona (“starbucks ópera”), la app ubica la zona y te muestra los locales más cercanos a ella, con la distancia.
+  Cada lugar muestra **foto** (Wikipedia / Wikimedia Commons; si no hay foto libre, un mapa del punto exacto), **dirección, código postal y distrito (arrondissement)**, y un enlace para ver más fotos en Google Maps.
   Puedes escribir en **francés, español o inglés** (“Musée du Louvre”, “Tour Eiffel”, “Château de Versailles”): la búsqueda ignora acentos y palabras como de/du/la.
 - **📌 Reservas con hora fija** – a cualquier lugar elegido puedes ponerle día y hora (una reserva en un restaurante, una entrada con horario). El plan lo deja exactamente a esa hora y ordena todo lo demás alrededor para que llegues a tiempo. En **⚡ Ahora** te avisa de tu próxima reserva y a qué hora salir, y no te recomienda nada que te haga llegar tarde. A cada uno le pones prioridad (*Imprescindible / Me gustaría / Si da tiempo*) y momento preferido (mañana, tarde, noche, atardecer).
 - **✈️ Viaje** – fecha y hora de llegada y salida, hotel, a qué hora empiezas y terminas el día, si te mueves a pie o en metro y si reservas hora de almuerzo.
@@ -43,6 +45,7 @@ Abre la URL en el teléfono y elige “Agregar a pantalla de inicio”: funciona
 - `js/data.js` – catálogo de lugares, horarios y curvas de aforo.
 - `js/osm.js` – búsqueda automática en OpenStreetMap y lectura de horarios (`opening_hours`).
 - `js/match.js` – búsqueda de nombres en varios idiomas.
+- `js/photos.js` – fotos desde Wikipedia/Wikimedia y mapa de respaldo.
 - `js/share.js` – enlace para compartir el viaje.
 - `js/planner.js` – motor: tiempos de traslado, aforo, puesta de sol, armado del itinerario y recomendaciones.
 - `js/app.js` – interfaz.

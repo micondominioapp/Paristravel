@@ -1,6 +1,8 @@
 // Service worker: permite abrir la app sin conexión (en el metro, por ejemplo).
-const CACHE = 'paristravel-v4';
-const SHELL = ['./', 'index.html', 'styles.css', 'js/app.js', 'js/planner.js', 'js/data.js', 'js/osm.js', 'js/share.js', 'js/match.js', 'icon.svg', 'manifest.webmanifest'];
+// Solo guarda los archivos de la app y la librería del mapa; fotos, mapas y búsquedas van directo a internet.
+const CACHE = 'paristravel-v6';
+const SHELL = ['./', 'index.html', 'styles.css', 'js/app.js', 'js/planner.js', 'js/data.js', 'js/osm.js', 'js/share.js',
+  'js/match.js', 'js/photos.js', 'icon.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -13,17 +15,19 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
-  if (url.hostname.includes('nominatim')) return; // búsquedas siempre en vivo
-  // Red primero, caché como respaldo; guarda también mapas y Leaflet para uso offline.
+  const ours = url.origin === self.location.origin || url.hostname === 'unpkg.com';
+  if (!ours) return; // el navegador se encarga (fotos, mapas, OpenStreetMap, Wikipedia)
+  // Red primero; si no hay conexión, la copia guardada.
   e.respondWith(
     fetch(e.request)
       .then((res) => {
-        if (res.ok || res.type === 'opaque') {
+        if (res.ok) {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(e.request, copy));
         }
         return res;
       })
-      .catch(() => caches.match(e.request).then((r) => r || caches.match('index.html')))
+      .catch(() => caches.match(e.request, { ignoreSearch: true })
+        .then((r) => r || (e.request.mode === 'navigate' ? caches.match('index.html') : Response.error()))),
   );
 });

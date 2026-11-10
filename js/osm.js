@@ -1,5 +1,6 @@
 // Búsqueda automática de lugares en OpenStreetMap: ubicación, tipo, horario y popularidad.
 import { hours } from './data.js';
+import { tokens } from './match.js';
 
 const DAYS = { Su: 0, Mo: 1, Tu: 2, We: 3, Th: 4, Fr: 5, Sa: 6 };
 const MONTHS = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
@@ -106,7 +107,9 @@ export function placeFromNominatim(r, month) {
   const importance = Number(r.importance) || 0.2;
   const name = r.namedetails?.['name:es'] || r.name || r.namedetails?.name || r.display_name.split(',')[0];
   const addr = r.address || {};
-  const short = [addr.road && `${addr.house_number ? `${addr.house_number} ` : ''}${addr.road}`, addr.suburb || addr.city_district].filter(Boolean).join(', ');
+  const street = addr.road || addr.pedestrian || addr.square || addr.footway || addr.place;
+  const short = [street && `${addr.house_number ? `${addr.house_number} ` : ''}${street}`, addr.quarter || addr.neighbourhood].filter(Boolean).join(', ');
+  const ex = r.extratags || {};
   return {
     name,
     localName: r.namedetails?.name || null, // nombre original (en francés)
@@ -122,16 +125,84 @@ export function placeFromNominatim(r, month) {
     hours: parsed || def.hours(),
     hoursSource: parsed ? 'osm' : 'estimado',
     openingHoursRaw: oh || null,
-    website: r.extratags?.website || r.extratags?.['contact:website'] || null,
+    postcode: addr.postcode || null,
+    arrondissement: arrondissement(addr.postcode, [addr.city_district, addr.suburb, addr.borough].filter(Boolean).join(' ')),
+    city: addr.city || addr.town || addr.village || null,
+    website: ex.website || ex['contact:website'] || null,
+    wikipedia: ex.wikipedia || null,
+    wikidata: ex.wikidata || null,
+    image: ex.image || ex.wikimedia_commons || null,
     osm: `${r.osm_type}/${r.osm_id}`,
   };
 }
 
-export async function searchPlaces(q, month) {
-  const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&extratags=1&namedetails=1&addressdetails=1'
-    + `&countrycodes=fr&viewbox=1.9,49.1,2.7,48.6&q=${encodeURIComponent(q)}`;
-  const res = await fetch(url, { headers: { 'Accept-Language': 'es,fr' } });
+// Distrito (arrondissement) de París a partir del código postal o del nombre del barrio.
+export function arrondissement(postcode, text = '') {
+  const pc = String(postcode || '').trim();
+  if (pc === '75116') return 16;
+  const m = pc.match(/^750(\d{2})$/);
+  if (m && +m[1] >= 1 && +m[1] <= 20) return +m[1];
+  const t = String(text).match(/(\d{1,2})\s*(?:e|er|ème)\s+arrondissement/i);
+  return t ? +t[1] : null;
+}
+
+export function districtLabel(n) {
+  if (!n) return '';
+  return `Distrito ${n} (${n}${n === 1 ? 'er' : 'e'} arrondissement)`;
+}
+
+// Nominatim pide máximo 1 consulta por segundo.
+let lastCall = 0;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function nominatim(params) {
+  const wait = lastCall + 1100 - Date.now();
+  if (wait > 0) await sleep(wait);
+  lastCall = Date.now();
+  const qs = new URLSearchParams({ format: 'jsonv2', extratags: '1', namedetails: '1', addressdetails: '1', countrycodes: 'fr', ...params });
+  const res = await fetch(`https://nominatim.openstreetmap.org/search?${qs}`, { headers: { 'Accept-Language': 'es,fr' } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  return data.map((r) => placeFromNominatim(r, month));
+  return res.json();
+}
+
+const PARIS_BOX = '1.9,49.1,2.7,48.6';
+const dist = (a, b) => Math.hypot((a.lat - b.lat) * 111, (a.lng - b.lng) * 73);
+
+// ¿El resultado contiene todas las palabras buscadas (en el nombre o la dirección)?
+function fullMatch(q, r) {
+  const hay = tokens(`${r.display_name} ${Object.values(r.namedetails || {}).join(' ')}`);
+  return tokens(q).every((w) => hay.some((v) => v.startsWith(w)));
+}
+
+// Búsqueda inteligente: primero el texto completo; si son varias palabras, prueba también
+// "qué" + "dónde" (ej. "starbucks ópera" = un Starbucks cerca de la Ópera), del más cercano al más lejano.
+export async function searchPlaces(q, month, onStatus = () => {}) {
+  const raw = await nominatim({ q: `${q}, Paris`, limit: '8', viewbox: PARIS_BOX });
+  let results = raw.map((r) => placeFromNominatim(r, month));
+  const words = q.trim().split(/\s+/);
+  const good = raw.filter((r) => fullMatch(q, r)).length;
+  if (words.length >= 2 && good < 3) {
+    for (let k = words.length - 1; k >= 1 && k >= words.length - 2; k--) {
+      const what = words.slice(0, k).join(' ');
+      const where = words.slice(k).join(' ');
+      onStatus(`Buscando "${what}" cerca de "${where}"…`);
+      const [area] = await nominatim({ q: `${where}, Paris`, limit: '1', viewbox: PARIS_BOX });
+      if (!area) continue;
+      const c = { lat: Number(area.lat), lng: Number(area.lon) };
+      const box = [c.lng - 0.014, c.lat + 0.009, c.lng + 0.014, c.lat - 0.009].join(',');
+      const near = await nominatim({ q: what, limit: '10', viewbox: box, bounded: '1' });
+      if (!near.length) continue;
+      const areaName = area.namedetails?.['name:es'] || area.name || where;
+      const nearPlaces = near.map((r) => {
+        const p = placeFromNominatim(r, month);
+        p.near = { name: areaName, meters: Math.round(dist(p, c) * 1000) };
+        return p;
+      }).sort((x, y) => x.near.meters - y.near.meters);
+      results = [...nearPlaces, ...results];
+      break;
+    }
+  }
+  if (!results.length && words.length) {
+    results = (await nominatim({ q, limit: '6' })).map((r) => placeFromNominatim(r, month));
+  }
+  return results.filter((f, i) => results.findIndex((g) => g.osm === f.osm) === i);
 }

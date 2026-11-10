@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseOpeningHours, categoryFromOsm, placeFromNominatim } from '../js/osm.js';
+import { parseOpeningHours, categoryFromOsm, placeFromNominatim, arrondissement, districtLabel, searchPlaces } from '../js/osm.js';
 import { planTrip, PARIS } from '../js/planner.js';
 
 const h = (a, b) => [a * 60, b * 60];
@@ -44,13 +44,15 @@ test('resultado de Nominatim se convierte en lugar planificable', () => {
   const r = {
     osm_type: 'node', osm_id: 1, lat: '48.8541', lon: '2.3326', category: 'amenity', type: 'cafe', importance: 0.45,
     name: 'Café de Flore', display_name: 'Café de Flore, 172, Boulevard Saint-Germain, Paris',
-    address: { house_number: '172', road: 'Boulevard Saint-Germain', suburb: 'Saint-Germain-des-Prés' },
+    address: { house_number: '172', road: 'Boulevard Saint-Germain', quarter: 'Saint-Germain-des-Prés', suburb: 'Paris 6e Arrondissement', postcode: '75006', city: 'Paris' },
     extratags: { opening_hours: 'Mo-Su 07:30-01:30', website: 'https://cafedeflore.fr' },
   };
   const p = placeFromNominatim(r, 11);
   assert.equal(p.category, 'comida');
   assert.equal(p.hoursSource, 'osm');
   assert.equal(p.address, '172 Boulevard Saint-Germain, Saint-Germain-des-Prés');
+  assert.equal(p.postcode, '75006');
+  assert.equal(p.arrondissement, 6);
   assert.ok(p.popularity > 0.4 && p.popularity < 0.8);
   const noHours = placeFromNominatim({ ...r, category: 'tourism', type: 'museum', extratags: {} }, 11);
   assert.equal(noHours.hoursSource, 'estimado');
@@ -69,4 +71,33 @@ test('un restaurante de tu lista reemplaza el almuerzo genérico', () => {
   assert.ok(!items.some((i) => i.type === 'lunch'));
   const c = items.find((i) => i.place?.id === 'c1');
   assert.ok(c.start >= 11 * 60 + 30 && c.start <= 14 * 60 + 30, `café a las ${c.start / 60}`);
+});
+
+test('distrito a partir del código postal', () => {
+  assert.equal(arrondissement('75002'), 2);
+  assert.equal(arrondissement('75116'), 16);
+  assert.equal(arrondissement('78000'), null);
+  assert.equal(arrondissement('', 'Paris 9e Arrondissement'), 9);
+  assert.equal(districtLabel(1), 'Distrito 1 (1er arrondissement)');
+});
+
+test('"starbucks ópera" busca Starbucks alrededor de la Ópera, del más cercano al más lejano', async () => {
+  const calls = [];
+  const sb = (id, lat, lon, road, num) => ({ osm_type: 'node', osm_id: id, lat: String(lat), lon: String(lon), category: 'amenity', type: 'cafe',
+    importance: 0.1, name: 'Starbucks', display_name: `Starbucks, ${num}, ${road}, Paris`, address: { road, house_number: num, postcode: '75002', suburb: 'Paris 2e Arrondissement' }, extratags: {} });
+  globalThis.fetch = async (url) => {
+    const q = new URL(url).searchParams;
+    calls.push(q.get('q'));
+    let body = [];
+    if (q.get('q') === 'starbucks ópera, Paris') body = [];
+    else if (q.get('q') === 'ópera, Paris') body = [{ lat: '48.8719', lon: '2.3316', name: 'Opéra Garnier', namedetails: { 'name:es': 'Ópera Garnier' } }];
+    else if (q.get('q') === 'starbucks' && q.get('bounded') === '1') body = [sb(2, 48.8664, 2.3348, "Avenue de l'Opéra", '26'), sb(1, 48.8705, 2.3316, 'Boulevard des Capucines', '3')];
+    return { ok: true, json: async () => body };
+  };
+  const res = await searchPlaces('starbucks ópera', 11);
+  assert.deepEqual(calls, ['starbucks ópera, Paris', 'ópera, Paris', 'starbucks']);
+  assert.equal(res[0].address, '3 Boulevard des Capucines');
+  assert.equal(res[0].near.name, 'Ópera Garnier');
+  assert.ok(res[0].near.meters < res[1].near.meters);
+  assert.equal(res[0].arrondissement, 2);
 });

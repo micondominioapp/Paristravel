@@ -164,3 +164,53 @@ const ALIASES = {
   vuitton: ['Fondation Louis Vuitton', 'Louis Vuitton Foundation'],
 };
 for (const p of PLACES) p.aliases = ALIASES[p.id] || [];
+
+PLACES.push({
+  id: 'starbucksopera', name: 'Starbucks Opéra (Boulevard des Capucines)', category: 'comida', lat: 48.8705, lng: 2.3316,
+  duration: 45, popularity: 0.7, maxWait: 15, slot: 'any', booking: false, capacity: 'Café grande, se llena por las fotos',
+  hours: hours('08:00', '21:00'), hoursEstimated: true,
+  tip: 'El famoso Starbucks “palacio” con techos pintados y lámparas de cristal, a pasos de la Ópera Garnier. Horario aproximado.',
+});
+ALIASES.starbucksopera = ['Starbucks Opera', 'Starbucks Capucines', 'Starbucks Boulevard des Capucines'];
+PLACES.at(-1).aliases = ALIASES.starbucksopera;
+
+// Código postal, dirección y artículo de Wikipedia (francés) para la foto.
+const INFO = {
+  eiffel: ['75007', 'Champ de Mars, 5 Av. Anatole France', 'Tour Eiffel'],
+  louvre: ['75001', 'Rue de Rivoli', 'Musée du Louvre'],
+  orsay: ['75007', "1 Rue de la Légion d'Honneur", "Musée d'Orsay"],
+  notredame: ['75004', '6 Parvis Notre-Dame – Pl. Jean-Paul II', 'Cathédrale Notre-Dame de Paris'],
+  saintechapelle: ['75001', '10 Boulevard du Palais', 'Sainte-Chapelle'],
+  arc: ['75008', 'Place Charles de Gaulle', "Arc de triomphe de l'Étoile"],
+  sacrecoeur: ['75018', '35 Rue du Chevalier de la Barre', 'Basilique du Sacré-Cœur de Montmartre'],
+  montmartre: ['75018', 'Place du Tertre', 'Place du Tertre'],
+  orangerie: ['75001', 'Jardin des Tuileries, Place de la Concorde', "Musée de l'Orangerie"],
+  pantheon: ['75005', 'Place du Panthéon', 'Panthéon (Paris)'],
+  luxembourg: ['75006', 'Rue de Médicis / Rue de Vaugirard', 'Jardin du Luxembourg'],
+  garnier: ['75009', "Place de l'Opéra", 'Opéra Garnier'],
+  champs: ['75008', 'Avenue des Champs-Élysées', 'Avenue des Champs-Élysées'],
+  invalides: ['75007', '129 Rue de Grenelle', 'Hôtel des Invalides'],
+  rodin: ['75007', '77 Rue de Varenne', 'Musée Rodin'],
+  catacombes: ['75014', '1 Av. du Colonel Henri Rol-Tanguy', 'Catacombes de Paris'],
+  marais: ['75004', 'Place des Vosges / Rue des Rosiers', 'Le Marais'],
+  lafayette: ['75009', '40 Boulevard Haussmann', 'Galeries Lafayette Haussmann'],
+  crucero: ['75008', "Port de la Conférence (Pont de l'Alma)", 'Bateaux-Mouches'],
+  trocadero: ['75016', 'Place du Trocadéro', 'Place du Trocadéro-et-du-11-Novembre'],
+  versailles: ['78000', "Place d'Armes, Versailles", 'Château de Versailles'],
+  montparnasse: ['75015', '33 Avenue du Maine', 'Tour Montparnasse'],
+  picasso: ['75003', '5 Rue de Thorigny', 'Musée Picasso (Paris)'],
+  tuileries: ['75001', 'Place de la Concorde / Rue de Rivoli', 'Jardin des Tuileries'],
+  shakespeare: ['75005', '37 Rue de la Bûcherie', 'Shakespeare and Company (librairie)'],
+  perelachaise: ['75020', '16 Rue du Repos', 'Cimetière du Père-Lachaise'],
+  canal: ['75010', 'Quai de Valmy / Quai de Jemmapes', 'Canal Saint-Martin'],
+  latino: ['75005', 'Rue Mouffetard', 'Quartier latin'],
+  alexandre: ['75008', 'Pont Alexandre III', 'Pont Alexandre-III'],
+  vivienne: ['75002', '6 Rue Vivienne', 'Galerie Vivienne'],
+  boursecommerce: ['75001', '2 Rue de Viarmes', 'Bourse de commerce de Paris'],
+  vuitton: ['75116', '8 Avenue du Mahatma Gandhi', 'Fondation Louis-Vuitton'],
+  starbucksopera: ['75002', '3 Boulevard des Capucines', null],
+};
+for (const p of PLACES) {
+  const [postcode, address, wiki] = INFO[p.id] || [];
+  Object.assign(p, { postcode, address, wikipedia: wiki ? `fr:${wiki}` : null });
+}

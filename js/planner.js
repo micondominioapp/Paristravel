@@ -3,6 +3,7 @@ import { CATEGORY_CURVES, DAY_FACTOR, SEASON_FACTOR } from './data.js';
 import { freeOnDate, visitCost } from './prices.js';
 
 export const PARIS = { lat: 48.8566, lng: 2.3522, name: 'Centro de París' };
+export const MAX_HOTEL_KM = 60; // un alojamiento más lejos no puede ser el de este viaje (Versalles está a 17 km)
 export const PRIORITY_WEIGHT = { 3: 300, 2: 150, 1: 60 };
 export const PRIORITY_LABEL = { 3: 'Imprescindible', 2: 'Me gustaría', 1: 'Si da tiempo' };
 
@@ -200,7 +201,9 @@ export function planTrip(places, trip, opts = {}) {
     return { days: [], unscheduled: [], error: 'Revisa las fechas de llegada y salida.' };
   }
   const mode = trip.mode || 'mixto';
-  const hotel = trip.hotel?.lat ? trip.hotel : PARIS;
+  const hotelFar = trip.hotel?.lat && haversineKm(trip.hotel, PARIS) > MAX_HOTEL_KM;
+  const hotel = trip.hotel?.lat && !hotelFar ? trip.hotel : PARIS;
+  const warnings = hotelFar ? [{ type: 'hotelFar', km: Math.round(haversineKm(trip.hotel, PARIS)) }] : [];
   const profile = { residency: trip.residency || 'non-eea', age: trip.age || 'adult' };
   const dates = [];
   for (let d = arrival.date; d <= departure.date; d = addDays(d, 1)) dates.push(d);
@@ -334,7 +337,7 @@ export function planTrip(places, trip, opts = {}) {
       if (it.type === 'free' && it.end - it.start < 10) { day.items.splice(k, 1); k--; }
     }
     while (day.items.length && day.items[day.items.length - 1].type === 'free') day.items.pop();
-    if (!day.items.some((it) => it.type === 'visit')) { day.items = []; day.note = 'Día libre: ya está todo programado. Agrega más lugares si quieres.'; }
+    if (!day.items.some((it) => it.type === 'visit')) { day.items = []; day.empty = true; }
   }
 
   // Si algo quedó fuera por esperar su día gratis, se replanifica sin esperar.
@@ -349,7 +352,11 @@ export function planTrip(places, trip, opts = {}) {
       reason: p.price?.closed ? (p.price.note || 'Cerrado') : tripDates.some((d) => hoursOn(p, d)) ? 'No cupo en el tiempo disponible: súbele la prioridad o quita otro lugar' : 'Cerrado todos los días de tu viaje',
     });
   }
-  return { days, unscheduled };
+  for (const d of days) {
+    if (!d.empty || d.note) continue;
+    d.note = unscheduled.length ? 'No cupo ninguna visita este día (revisa abajo los lugares que quedaron fuera).' : 'Día libre: ya está todo programado. Agrega más lugares si quieres.';
+  }
+  return { days, unscheduled, warnings };
 }
 
 // ---------- Recomendación "¿Qué hago ahora?" ----------

@@ -94,3 +94,17 @@ test('tiempos de traslado razonables', () => {
   const ev = evaluate(e, { pos: PARIS, date: '2026-12-09', t: 23 * 60, mode: 'mixto' });
   assert.equal(ev.ok, false);
 });
+
+test('un alojamiento guardado en otra ciudad (ej. Madrid) se ignora y se avisa', () => {
+  const madrid = { lat: 40.4237, lng: -3.6620, name: 'Mi alojamiento' };
+  const places = pick(['louvre', 'eiffel', 'notredame', 'sacrecoeur', 'orsay']);
+  const plan = planTrip(places, { ...trip, hotel: madrid });
+  assert.equal(plan.warnings[0].type, 'hotelFar');
+  assert.ok(plan.warnings[0].km > 1000);
+  assert.equal(plan.unscheduled.length, 0);
+  const first = plan.days.flatMap((d) => d.items).find((i) => i.type === 'visit');
+  assert.equal(first.from.name, 'Centro de París');
+  // Versalles sí cuenta como alojamiento válido
+  const v = planTrip(places, { ...trip, hotel: { lat: 48.8049, lng: 2.1204, name: 'Hotel Versalles' } });
+  assert.deepEqual(v.warnings, []);
+});

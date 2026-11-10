@@ -115,3 +115,5 @@ nav.bottom button.active { color: var(--accent); }
 .prices summary { font-size: .82rem; color: var(--brand); }
 .prices details .small > div { margin-top: 3px; }
 .free-hint { color: var(--low); }
+.warn-box { background: #fdecea; color: #7a1d14; border-radius: 10px; padding: 10px; margin: 6px 0; font-size: .9rem; }
+@media (prefers-color-scheme: dark) { .warn-box { background: #3a1d1a; color: #f6c9c2; } }

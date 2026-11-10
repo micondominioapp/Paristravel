@@ -6,7 +6,7 @@ import { placeMatches, nameMatches } from './match.js';
 import { encodeTrip, decodeTrip, shareUrl, codeFromHash } from './share.js';
 import {
   PARIS, PRIORITY_LABEL, planTrip, rankNow, parisNow, addDays, fmt, toMin, crowdAt, crowdLevel,
-  hoursOn, haversineKm, mapsLink, sunset, dow, splitDateTime, travel,
+  hoursOn, haversineKm, mapsLink, sunset, dow, splitDateTime, travel, MAX_HOTEL_KM,
 } from './planner.js';
 
 const STORE_KEY = 'paristravel.v1';
@@ -103,7 +103,8 @@ function locate({ quiet = false } = {}) {
 const inParis = (pos) => pos && haversineKm(pos, PARIS) < 40;
 function startPos() {
   if (inParis(ui.pos)) return ui.pos;
-  return state.trip.hotel || PARIS;
+  const h = state.trip.hotel;
+  return h && haversineKm(h, PARIS) <= MAX_HOTEL_KM ? h : PARIS;
 }
 
 // ---------------- Búsqueda de direcciones (OpenStreetMap) ----------------
@@ -390,11 +391,12 @@ function renderPlan() {
     $('#day-tabs').innerHTML = $('#plan-day').innerHTML = $('#plan-unscheduled').innerHTML = '';
     return;
   }
+  const farWarn = (plan.warnings || []).find((w) => w.type === 'hotelFar');
   const visits = plan.days.reduce((n, d) => n + d.items.filter((i) => i.type === 'visit').length, 0);
   const chosen = chosenPlaces().filter((p) => !state.visited[p.id]).length;
-  $('#plan-summary').innerHTML = chosen
-    ? `${visits} de ${chosen} lugares organizados en ${plan.days.length} día(s).${state.replan ? ` Replanificado desde tu ubicación a las ${fmt(state.replan.min)}.` : ''} Salida desde: ${esc((state.trip.hotel || PARIS).name || 'hotel')}.<br>💶 <strong>Entradas y comidas del plan: ${costText(costSum(plan.days.flatMap((d) => d.items)))} por persona</strong> <span class="muted small">(${profile().residency === 'eea' ? 'residente UE' : 'no residente UE'}, ${({ adult: '26+', young: '18–25', minor: 'menor de 18' })[profile().age]}; cámbialo en ✈️ Viaje)</span>`
-    : 'Aún no elegiste lugares. Ve a <strong>📌 Lugares</strong> y marca lo que quieres conocer.';
+  $('#plan-summary').innerHTML = (farWarn ? `<div class="warn-box">⚠️ <strong>Tu alojamiento estaba guardado a ${farWarn.km} km de París</strong> (seguramente usaste "usar mi ubicación" desde otra ciudad). Para no arruinar el plan uso el centro de París. <a href="#" data-tab="trip">Corrígelo en ✈️ Viaje</a> buscando el hotel por nombre.</div>` : '') + (chosen
+    ? `${visits} de ${chosen} lugares organizados en ${plan.days.length} día(s).${state.replan ? ` Replanificado desde tu ubicación a las ${fmt(state.replan.min)}.` : ''} Salida desde: ${esc((farWarn ? PARIS : (state.trip.hotel || PARIS)).name || 'hotel')}.<br>💶 <strong>Entradas y comidas del plan: ${costText(costSum(plan.days.flatMap((d) => d.items)))} por persona</strong> <span class="muted small">(${profile().residency === 'eea' ? 'residente UE' : 'no residente UE'}, ${({ adult: '26+', young: '18–25', minor: 'menor de 18' })[profile().age]}; cámbialo en ✈️ Viaje)</span>`
+    : 'Aún no elegiste lugares. Ve a <strong>📌 Lugares</strong> y marca lo que quieres conocer.');
 
   if (!plan.days.some((d) => d.date === ui.day)) {
     const today = parisNow().date;
@@ -435,7 +437,7 @@ function renderPlan() {
 
     if (ensureMap()) {
       mapLayer.clearLayers();
-      const startP = day.items.find((i) => i.type === 'visit')?.from || tripPosHotel;
+      const startP = day.items.find((i) => i.type === 'visit')?.from || (farWarn ? PARIS : tripPosHotel);
       const pts = [[startP.lat, startP.lng]];
       L.marker([startP.lat, startP.lng], { icon: startP.name === 'Mi ubicación' ? pin('•', 'me') : pin('H', 'hotel') })
         .bindPopup(esc(startP.name || 'Inicio')).addTo(mapLayer);
@@ -482,7 +484,7 @@ function passCard(plan) {
   return `<div class="card ${a.saving > 0 ? 'hero' : ''}"><h3>🎫 ¿Te conviene el Paris Museum Pass?</h3>
     ${a.saving > 0
     ? `<p>✅ <strong>Sí: el pase de ${a.days} días (${euro(a.price)}) te ahorra ≈ ${euro(Math.round(a.saving))}</strong> si lo activas el ${range}. Ahí visitas: ${a.places.map(esc).join(', ')} (${euro(Math.round(a.sum))} por separado).</p>`
-    : `<p>❌ No te conviene: en el mejor tramo pagarías ${euro(Math.round(a.sum))} por separado y el pase más barato cuesta ${euro(MUSEUM_PASS[0].price)}.</p>`}
+    : `<p>❌ No te conviene: con tu plan, lo más que usarías es el pase de ${a.days} días (${euro(a.price)}), y por separado esas entradas suman ${euro(Math.round(a.sum))}. Sale más barato pagar cada entrada.</p>`}
     <p class="muted small">Pases de ${MUSEUM_PASS.map((x) => `${x.days} días ${euro(x.price)}`).join(' · ')} (horas consecutivas desde la primera entrada; precios 2026, confírmalos en parismuseumpass.fr). No incluye Torre Eiffel, Catacumbas ni Ópera Garnier. En el Louvre y Versalles igual debes reservar tu franja horaria.</p></div>`;
 }
 
@@ -568,7 +570,10 @@ function renderTrip() {
     if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? '';
   }
   const h = state.trip.hotel;
-  $('#hotel-status').textContent = h ? `🏨 ${h.name}` : 'Sin alojamiento: usaré el centro de París como punto de partida.';
+  const far = h && haversineKm(h, PARIS) > MAX_HOTEL_KM;
+  $('#hotel-status').innerHTML = !h ? 'Sin alojamiento: usaré el centro de París como punto de partida.'
+    : far ? `<span style="color:var(--max)">⚠️ Tu alojamiento guardado está a ${Math.round(haversineKm(h, PARIS))} km de París (se guardó tu ubicación de otra ciudad). Lo ignoro y uso el centro de París. Búscalo abajo por nombre o dirección.</span>`
+      : `🏨 ${esc(h.name)}`;
 }
 
 // ---------------- Navegación ----------------
@@ -670,7 +675,13 @@ document.addEventListener('click', async (e) => {
     }
     case 'hotel-here': {
       const pos = await locate();
-      if (pos) { state.trip.hotel = { lat: pos.lat, lng: pos.lng, name: 'Mi alojamiento' }; update(); toast('Alojamiento guardado'); }
+      if (!pos) break;
+      if (!inParis(pos)) {
+        toast(`Estás a ${Math.round(haversineKm(pos, PARIS))} km de París: busca tu hotel por nombre o dirección`);
+        $('#hotel-query').focus();
+        break;
+      }
+      state.trip.hotel = { lat: pos.lat, lng: pos.lng, name: 'Mi alojamiento' }; update(); toast('Alojamiento guardado');
       break;
     }
     case 'c-here': {

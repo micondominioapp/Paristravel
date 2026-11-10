@@ -416,10 +416,15 @@ function ensureMap() {
 }
 const pin = (txt, cls = '') => L.divIcon({ className: '', html: `<div class="pin ${cls}">${txt}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
 
+// El plan se recalcula solo si cambió algo (lugares, viaje, visitados o replanificación).
+let planMemo = { key: null, plan: null };
 function currentPlan() {
   const opts = { visited: state.visited };
   if (state.replan) opts.now = state.replan;
-  return planTrip(chosenPlaces(), state.trip, opts);
+  const places = chosenPlaces();
+  const key = JSON.stringify([places, state.trip, state.visited, state.replan]);
+  if (planMemo.key !== key) planMemo = { key, plan: planTrip(places, state.trip, opts) };
+  return planMemo.plan;
 }
 
 function renderPlan() {

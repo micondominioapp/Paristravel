@@ -9,7 +9,10 @@ App web (funciona en el celular, sin instalar nada) para organizar un viaje a Pa
   Puedes escribir en **francés, español o inglés** (“Musée du Louvre”, “Tour Eiffel”, “Château de Versailles”): la búsqueda ignora acentos y palabras como de/du/la.
 - **📌 Reservas con hora fija** – al agregar un lugar desde la búsqueda puedes elegir ahí mismo el día, la hora y la prioridad; o después, a cualquier lugar elegido puedes ponerle día y hora (una reserva en un restaurante, una entrada con horario). El plan lo deja exactamente a esa hora y ordena todo lo demás alrededor para que llegues a tiempo. En **⚡ Ahora** te avisa de tu próxima reserva y a qué hora salir, y no te recomienda nada que te haga llegar tarde. A cada uno le pones prioridad (*Imprescindible / Me gustaría / Si da tiempo*) y momento preferido (mañana, tarde, noche, atardecer).
 - **✈️ Viaje** – fecha y hora de llegada y salida, hotel, a qué hora empiezas y terminas el día, si te mueves a pie o en metro y si reservas hora de almuerzo.
-- **🗓️ Plan** – arma automáticamente el itinerario día por día: respeta horarios y cierres (p. ej. el Louvre no abre los martes), minimiza traslados, evita las horas de más aforo, programa los miradores al atardecer y deja lo que no cabe en una lista con el motivo. Mapa con la ruta del día, botón **“Cómo llegar”** (Google Maps) y **“Replanificar desde aquí”**, que usa tu ubicación y la hora actual para reordenar lo que te falta.
+- **🗓️ Plan** – arma automáticamente el itinerario día por día **agrupando lo que está cerca**: forma zonas a pie
+  (ej. Sacré-Cœur + Montmartre + Moulin Rouge; Ópera + Galeries Lafayette), reparte las zonas entre los días según
+  el tiempo disponible, mejora el reparto moviendo e intercambiando lugares entre días, y ordena cada día para
+  caminar lo menos posible. Además: respeta horarios y cierres (p. ej. el Louvre no abre los martes), minimiza traslados, evita las horas de más aforo, programa los miradores al atardecer y deja lo que no cabe en una lista con el motivo. Mapa con la ruta del día, botón **“Cómo llegar”** (Google Maps) y **“Replanificar desde aquí”**, que usa tu ubicación y la hora actual para reordenar lo que te falta.
 - **⚡ Ahora** – detecta tu ubicación (GPS) y te dice **a dónde ir en este momento**: abierto, cerca, con menos aforo, y si conviene ir más tarde (“Mejor a las 18:30, aforo 30%”).
 
 ## Precios y entradas gratis
@@ -65,4 +68,5 @@ Abre la URL en el teléfono y elige “Agregar a pantalla de inicio”: funciona
 - `js/share.js` – enlace para compartir el viaje.
 - `js/planner.js` – motor: tiempos de traslado, aforo, puesta de sol, armado del itinerario y recomendaciones.
 - `js/app.js` – interfaz.
-- `tests/` – pruebas (`node --test`).
+- `tests/` – pruebas (`npm test`).
+- `scripts/bench.mjs` – compara la calidad de los planes (traslado total, lugares cercanos separados, lugares fuera).

@@ -309,3 +309,17 @@ for (const p of PLACES) if (PRICES[p.id]) p.price = PRICES[p.id];
   mp.name = 'Torre Montparnasse (mirador) — cerrado por obras';
   mp.tip = 'Cerró el 31 de marzo de 2026 por obras de renovación durante varios años. Alternativa: la terraza gratis de las Galeries Lafayette.';
 }
+
+// Moulin Rouge: la fachada se ve gratis (mejor de noche, iluminada); el espectáculo se reserva aparte.
+PLACES.push({
+  id: 'moulinrouge', name: 'Moulin Rouge (fachada) y Pigalle', category: 'monumento', lat: 48.8841, lng: 2.3322,
+  duration: 30, popularity: 0.75, maxWait: 0, slot: 'evening', booking: false, capacity: 'Espacio abierto (el cabaret tiene aforo limitado)',
+  hours: hours('00:00', '24:00'), aliases: ['Moulin Rouge', 'Moulin-Rouge', 'Molino Rojo', 'Pigalle', 'Boulevard de Clichy'],
+  postcode: '75018', address: '82 Boulevard de Clichy', wikipedia: 'fr:Moulin-Rouge',
+  tip: 'Verlo por fuera es gratis; de noche, con el molino iluminado, es cuando más luce. En Pigalle cuida bolsos y celulares.',
+  price: {
+    free: true, web: 'https://www.moulinrouge.fr',
+    options: ['Ver la fachada: gratis', 'Espectáculo «Féerie» todas las noches a las 21:00 y 23:00 (incluye media botella de champán): desde ≈ €100–130', 'Cena + espectáculo (19:00): desde ≈ €255', 'Los precios cambian según la demanda (se llena más del 95% de las noches): reserva con antelación'],
+    people: 'La foto con el molino iluminado es obligatoria. Si vas al espectáculo, la entrada de las 23:00 suele ser algo más barata.',
+  },
+});

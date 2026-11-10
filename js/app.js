@@ -1,5 +1,6 @@
 import { PLACES, CATEGORIES, SLOTS, hours } from './data.js';
 import { searchPlaces } from './osm.js';
+import { encodeTrip, decodeTrip, shareUrl, codeFromHash } from './share.js';
 import {
   PARIS, PRIORITY_LABEL, planTrip, rankNow, parisNow, addDays, fmt, toMin, crowdAt, crowdLevel,
   hoursOn, haversineKm, mapsLink, sunset, dow, splitDateTime,
@@ -526,6 +527,17 @@ document.addEventListener('click', async (e) => {
       update(); toast(`${name} agregado a tu lista`);
       break;
     }
+    case 'share-trip': {
+      if (!Object.keys(state.selected).length) return toast('Primero elige lugares para tu viaje');
+      const url = shareUrl(await encodeTrip(state));
+      const text = 'Este es nuestro itinerario para París 🗼. Ábrelo y se carga en la app:';
+      if (navigator.share) {
+        try { await navigator.share({ title: 'Viaje a París', text, url }); } catch { /* cancelado */ }
+      } else {
+        try { await navigator.clipboard.writeText(`${text} ${url}`); toast('Enlace copiado: pégalo en WhatsApp'); } catch { prompt('Copia este enlace:', url); }
+      }
+      break;
+    }
     case 'export': {
       const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
       const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'mi-viaje-paris.json' });
@@ -568,10 +580,34 @@ $('#place-search').addEventListener('input', (e) => { ui.query = e.target.value;
 $('#c-cat').innerHTML = Object.entries(CATEGORIES).map(([k, v]) => `<option value="${k}">${v.icon} ${v.label}</option>`).join('');
 $('#c-closed').innerHTML = DAY_SHORT.map((d, i) => `<label><input type="checkbox" value="${i}">${d}</label>`).join('');
 
+// ---------------- Abrir un viaje compartido (#viaje=...) ----------------
+async function loadSharedFromLink() {
+  const code = codeFromHash();
+  if (!code) return;
+  history.replaceState(null, '', location.pathname + location.search); // limpia el enlace
+  try {
+    const data = await decodeTrip(code);
+    const hasOwn = Object.keys(state.selected).length > 0;
+    const same = JSON.stringify({ t: state.trip, s: state.selected, c: state.custom }) === JSON.stringify({ t: data.trip, s: data.selected, c: data.custom });
+    if (same) { toast('Ya tienes este viaje cargado'); return; }
+    if (hasOwn && !confirm('Te compartieron un viaje a París. ¿Cargarlo? Reemplaza los lugares y fechas que tienes ahora en este teléfono.')) return;
+    const d = defaultState();
+    state = { ...d, trip: { ...d.trip, ...data.trip }, selected: data.selected || {}, custom: data.custom || [], visited: data.visited || {} };
+    ui.tab = 'plan';
+    ui.day = null;
+    update();
+    toast('✅ Viaje compartido cargado');
+  } catch {
+    toast('El enlace del viaje no es válido o está incompleto');
+  }
+}
+
 // ---------------- Inicio ----------------
 tick();
 setInterval(() => { tick(); if (ui.tab === 'now') renderNow(); }, 60000);
 render();
+loadSharedFromLink();
+window.addEventListener('hashchange', loadSharedFromLink);
 locate({ quiet: true }).then(() => { if (ui.tab === 'now') renderNow(); });
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});

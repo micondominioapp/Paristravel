@@ -8,6 +8,12 @@ App web (funciona en el celular, sin instalar nada) para organizar un viaje a Pa
 - **🗓️ Plan** – arma automáticamente el itinerario día por día: respeta horarios y cierres (p. ej. el Louvre no abre los martes), minimiza traslados, evita las horas de más aforo, programa los miradores al atardecer y deja lo que no cabe en una lista con el motivo. Mapa con la ruta del día, botón **“Cómo llegar”** (Google Maps) y **“Replanificar desde aquí”**, que usa tu ubicación y la hora actual para reordenar lo que te falta.
 - **⚡ Ahora** – detecta tu ubicación (GPS) y te dice **a dónde ir en este momento**: abierto, cerca, con menos aforo, y si conviene ir más tarde (“Mejor a las 18:30, aforo 30%”).
 
+## Compartir el itinerario
+
+En **🗓️ Plan** (o en **✈️ Viaje**) toca **🔗 Compartir viaje** y envía el enlace por WhatsApp. Quien lo abra
+ve el mismo itinerario: fechas, hotel, lugares elegidos, prioridades y lugares agregados. El viaje va
+comprimido dentro del propio enlace, así que no hace falta servidor ni cuenta. Si cambias algo, envía el enlace de nuevo.
+
 ## Aforo
 
 Los monumentos de París no publican su aforo en vivo de forma abierta, así que la app lo **estima** con:
@@ -34,6 +40,7 @@ Abre la URL en el teléfono y elige “Agregar a pantalla de inicio”: funciona
 
 - `js/data.js` – catálogo de lugares, horarios y curvas de aforo.
 - `js/osm.js` – búsqueda automática en OpenStreetMap y lectura de horarios (`opening_hours`).
+- `js/share.js` – enlace para compartir el viaje.
 - `js/planner.js` – motor: tiempos de traslado, aforo, puesta de sol, armado del itinerario y recomendaciones.
 - `js/app.js` – interfaz.
 - `tests/` – pruebas (`node --test`).

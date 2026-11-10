@@ -41,7 +41,8 @@
           <div class="row gap">
             <button class="btn" data-action="replan-here">📍 Replanificar desde aquí</button>
             <button class="btn ghost" data-action="replan-reset" id="btn-replan-reset" hidden>Plan original</button>
-            <button class="btn ghost" data-action="copy-plan">📋 Copiar</button>
+            <button class="btn" data-action="share-trip">🔗 Compartir viaje</button>
+            <button class="btn ghost" data-action="copy-plan">📋 Copiar texto</button>
           </div>
         </div>
         <p class="muted" id="plan-summary"></p>
@@ -123,8 +124,9 @@
       </form>
       <div class="card">
         <h3>Datos</h3>
-        <p class="muted">Todo se guarda solo en este teléfono.</p>
+        <p class="muted">Todo se guarda en este teléfono. Para que otra persona vea tu mismo itinerario, envíale el enlace de <strong>Compartir viaje</strong>: al abrirlo se carga tu viaje en su teléfono. Si cambias algo, vuelve a enviarle el enlace.</p>
         <div class="row gap wrap">
+          <button class="btn small" data-action="share-trip">🔗 Compartir viaje</button>
           <button class="btn small ghost" data-action="export">⬇️ Exportar</button>
           <label class="btn small ghost">⬆️ Importar<input type="file" id="import-file" accept="application/json" hidden></label>
           <button class="btn small danger" data-action="reset-visited">Desmarcar visitados</button>

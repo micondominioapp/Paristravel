@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>París a mi ritmo</title>
+  <meta name="description" content="Planificador de viaje a París: ordena tus visitas según tu ubicación, horarios y aforo estimado.">
+  <meta name="theme-color" content="#1f3a5f">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <h1>🗼 París a mi ritmo</h1>
+    <span id="clock" class="clock" title="Hora en París"></span>
+  </header>
+
+  <main>
+    <!-- AHORA -->
+    <section id="tab-now" class="tab">
+      <div class="card">
+        <div class="row between">
+          <div>
+            <h2>¿Qué hago ahora?</h2>
+            <p class="muted" id="now-status">Detectando tu ubicación…</p>
+          </div>
+          <button class="btn" data-action="locate">📍 Ubicarme</button>
+        </div>
+      </div>
+      <div id="now-list"></div>
+    </section>
+
+    <!-- PLAN -->
+    <section id="tab-plan" class="tab" hidden>
+      <div class="card">
+        <div class="row between wrap">
+          <h2>Mi itinerario</h2>
+          <div class="row gap">
+            <button class="btn" data-action="replan-here">📍 Replanificar desde aquí</button>
+            <button class="btn ghost" data-action="replan-reset" id="btn-replan-reset" hidden>Plan original</button>
+            <button class="btn ghost" data-action="copy-plan">📋 Copiar</button>
+          </div>
+        </div>
+        <p class="muted" id="plan-summary"></p>
+        <div id="day-tabs" class="chips"></div>
+      </div>
+      <div id="map" class="map"></div>
+      <div id="plan-day"></div>
+      <div id="plan-unscheduled"></div>
+    </section>
+
+    <!-- LUGARES -->
+    <section id="tab-places" class="tab" hidden>
+      <div class="card">
+        <h2>¿Qué quieres conocer?</h2>
+        <p class="muted">Marca los lugares, ponles prioridad y el planificador los ordena. Las barras muestran el aforo estimado por hora.</p>
+        <input id="place-search" type="search" placeholder="Buscar lugar…">
+        <div id="cat-chips" class="chips"></div>
+        <div class="row gap wrap">
+          <button class="btn small ghost" data-action="select-top">⭐ Marcar los imprescindibles</button>
+          <button class="btn small ghost" data-action="only-selected" id="btn-only-selected">Ver solo elegidos</button>
+        </div>
+      </div>
+
+      <details class="card" id="custom-form">
+        <summary><strong>➕ Agregar un lugar propio</strong></summary>
+        <label>Nombre<input id="c-name" placeholder="Ej: Café de Flore"></label>
+        <label>Buscar dirección
+          <div class="row gap"><input id="c-query" placeholder="Dirección o nombre en París"><button class="btn small" data-action="c-search">Buscar</button></div>
+        </label>
+        <div id="c-results"></div>
+        <div class="row gap wrap">
+          <button class="btn small ghost" data-action="c-here">📍 Usar mi ubicación actual</button>
+          <span class="muted" id="c-coords">Sin ubicación</span>
+        </div>
+        <div class="grid2">
+          <label>Tipo<select id="c-cat"></select></label>
+          <label>Duración (min)<input id="c-dur" type="number" min="10" step="5" value="60"></label>
+          <label>Abre<input id="c-open" type="time" value="09:00"></label>
+          <label>Cierra<input id="c-close" type="time" value="20:00"></label>
+        </div>
+        <fieldset class="days"><legend>Cerrado los días</legend><div id="c-closed"></div></fieldset>
+        <button class="btn" data-action="c-add">Agregar lugar</button>
+      </details>
+
+      <div id="places-list"></div>
+    </section>
+
+    <!-- VIAJE -->
+    <section id="tab-trip" class="tab" hidden>
+      <form class="card" id="trip-form" onsubmit="return false">
+        <h2>Mi viaje</h2>
+        <p class="muted">Todas las horas son <strong>hora de París</strong>.</p>
+        <div class="grid2">
+          <label>Llegada<input type="datetime-local" name="arrival" required></label>
+          <label>Salida<input type="datetime-local" name="departure" required></label>
+          <label>Desde el aeropuerto/estación (min)<input type="number" name="arrivalBuffer" min="0" step="15"></label>
+          <label>Antes de irme necesito (min)<input type="number" name="departureBuffer" min="0" step="15"></label>
+          <label>Empiezo el día a las<input type="time" name="dayStart"></label>
+          <label>Termino el día a las<input type="time" name="dayEnd"></label>
+          <label>Me muevo
+            <select name="mode">
+              <option value="mixto">A pie y metro (automático)</option>
+              <option value="walk">Solo a pie</option>
+              <option value="transit">Metro / transporte</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" name="lunch"> Reservar 1 h para almorzar</label>
+        </div>
+        <h3>Alojamiento</h3>
+        <p class="muted" id="hotel-status"></p>
+        <div class="row gap"><input id="hotel-query" placeholder="Nombre u dirección del hotel"><button class="btn small" data-action="hotel-search">Buscar</button></div>
+        <div id="hotel-results"></div>
+        <button class="btn small ghost" data-action="hotel-here">📍 Estoy en mi hotel: usar mi ubicación</button>
+      </form>
+      <div class="card">
+        <h3>Datos</h3>
+        <p class="muted">Todo se guarda solo en este teléfono.</p>
+        <div class="row gap wrap">
+          <button class="btn small ghost" data-action="export">⬇️ Exportar</button>
+          <label class="btn small ghost">⬆️ Importar<input type="file" id="import-file" accept="application/json" hidden></label>
+          <button class="btn small danger" data-action="reset-visited">Desmarcar visitados</button>
+        </div>
+        <p class="muted small">⚠️ El aforo es una <strong>estimación</strong> basada en patrones típicos (hora, día, temporada, atardecer y cierres de otros museos). Ningún monumento de París publica aforo en vivo de forma abierta; cuando estés en un lugar puedes reportar cómo está y la app lo usará para recomendarte. Los horarios son aproximados: confírmalos en la web oficial.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom">
+    <button data-tab="now" class="active">⚡<span>Ahora</span></button>
+    <button data-tab="plan">🗓️<span>Plan</span></button>
+    <button data-tab="places">📌<span>Lugares</span></button>
+    <button data-tab="trip">✈️<span>Viaje</span></button>
+  </nav>
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

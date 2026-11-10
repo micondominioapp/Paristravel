@@ -1,0 +1,286 @@
+// Motor de planificación: tiempos, distancias, aforo estimado y armado del itinerario.
+import { CATEGORY_CURVES, DAY_FACTOR, SEASON_FACTOR } from './data.js';
+
+export const PARIS = { lat: 48.8566, lng: 2.3522, name: 'Centro de París' };
+export const PRIORITY_WEIGHT = { 3: 300, 2: 150, 1: 60 };
+export const PRIORITY_LABEL = { 3: 'Imprescindible', 2: 'Me gustaría', 1: 'Si da tiempo' };
+
+const pad = (n) => String(n).padStart(2, '0');
+
+export function toMin(s) {
+  const [h, m] = String(s).split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+
+export function fmt(min) {
+  const m = Math.round(min);
+  return `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`;
+}
+
+// ---------- Fechas (todas en "hora de París" como texto YYYY-MM-DD + minutos) ----------
+function ymd(dateStr) {
+  return dateStr.split('-').map(Number);
+}
+
+export function dow(dateStr) {
+  const [y, m, d] = ymd(dateStr);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+export function addDays(dateStr, n) {
+  const [y, m, d] = ymd(dateStr);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+export function splitDateTime(dt) {
+  const [date, time = '00:00'] = String(dt).split('T');
+  return { date, min: toMin(time) };
+}
+
+const parisFmt = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
+
+export function parisNow(date = new Date()) {
+  const p = Object.fromEntries(parisFmt.formatToParts(date).map((x) => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, min: Number(p.hour) * 60 + Number(p.minute) };
+}
+
+// Diferencia de París con UTC en minutos (60 en invierno, 120 en verano).
+export function parisOffset(dateStr) {
+  const [y, m, d] = ymd(dateStr);
+  return parisNow(new Date(Date.UTC(y, m - 1, d, 12))).min - 12 * 60;
+}
+
+// Hora de la puesta de sol en París (minutos, hora local). Aproximación NOAA.
+export function sunset(dateStr, lat = PARIS.lat, lng = PARIS.lng) {
+  const [y, m, d] = ymd(dateStr);
+  const n = (Date.UTC(y, m - 1, d) - Date.UTC(y, 0, 0)) / 864e5;
+  const g = (2 * Math.PI / 365) * (n - 1);
+  const eq = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const latR = (lat * Math.PI) / 180;
+  const ha = Math.acos(Math.cos((90.833 * Math.PI) / 180) / (Math.cos(latR) * Math.cos(decl)) - Math.tan(latR) * Math.tan(decl));
+  return 720 - 4 * (lng - (ha * 180) / Math.PI) - eq + parisOffset(dateStr);
+}
+
+// ---------- Distancias ----------
+export function haversineKm(a, b) {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+// mode: 'walk' | 'transit' | 'mixto'
+export function travel(a, b, mode = 'mixto') {
+  const km = haversineKm(a, b) * 1.3; // las calles no son línea recta
+  const walk = Math.round((km / 4.5) * 60);
+  const transit = Math.round(8 + (km / 22) * 60); // metro/RER incluyendo esperas
+  if (mode === 'walk') return { min: walk, how: 'a pie', km };
+  if (mode === 'transit') return { min: walk <= 8 ? walk : transit, how: walk <= 8 ? 'a pie' : 'metro', km };
+  return walk <= 20 || walk <= transit ? { min: walk, how: 'a pie', km } : { min: transit, how: 'metro', km };
+}
+
+// ---------- Horarios y aforo ----------
+export function hoursOn(place, dateStr) {
+  return place.hours?.[dow(dateStr)] ?? null;
+}
+
+function curveValue(category, minute) {
+  const curve = CATEGORY_CURVES[category] || CATEGORY_CURVES.monumento;
+  const h = Math.floor(minute / 60);
+  const f = (minute % 60) / 60;
+  const v = (x) => curve[x] ?? 0.1;
+  return v(h) * (1 - f) + v(h + 1) * f;
+}
+
+// Aforo estimado (0-1) de un lugar en una fecha y hora.
+export function crowdAt(place, dateStr, minute) {
+  const d = dow(dateStr);
+  const month = ymd(dateStr)[1] - 1;
+  let c = curveValue(place.category, minute);
+  if (place.category === 'mirador' || place.category === 'paseo') {
+    const diff = Math.abs(minute - sunset(dateStr));
+    if (diff < 60) c += 0.15 * (1 - diff / 60); // el atardecer atrae gente
+  }
+  c *= (place.popularity ?? 0.5) * DAY_FACTOR[d] * SEASON_FACTOR[month] * (place.dayBoost?.[d] ?? 1);
+  return Math.max(0.03, Math.min(1, c));
+}
+
+export function waitMinutes(place, crowd) {
+  return Math.round((place.maxWait ?? 0) * Math.max(0, crowd - 0.3) / 0.7);
+}
+
+export function crowdLevel(c) {
+  if (c < 0.35) return { label: 'Bajo', cls: 'low' };
+  if (c < 0.6) return { label: 'Moderado', cls: 'mid' };
+  if (c < 0.8) return { label: 'Alto', cls: 'high' };
+  return { label: 'Muy alto', cls: 'max' };
+}
+
+export function inSlot(slot, dateStr, minute) {
+  switch (slot) {
+    case 'morning': return minute < 12 * 60;
+    case 'afternoon': return minute >= 12 * 60 && minute < 18 * 60;
+    case 'evening': return minute >= Math.min(18 * 60, sunset(dateStr));
+    case 'sunset': { const s = sunset(dateStr); return minute >= s - 90 && minute <= s + 30; }
+    default: return true;
+  }
+}
+
+// Busca la hora con menos aforo para entrar hoy a partir de `from`.
+export function bestTime(place, dateStr, from, until = 24 * 60) {
+  const hrs = hoursOn(place, dateStr);
+  if (!hrs) return null;
+  let best = null;
+  const last = Math.min(hrs[1], until) - place.duration;
+  const first = Math.max(from, hrs[0]);
+  // Primera opción: ya mismo; luego en horas redondas (:00 / :30).
+  for (let s = first; s <= last; s = s === first ? Math.ceil((first + 1) / 30) * 30 : s + 30) {
+    const c = crowdAt(place, dateStr, s);
+    if (!best || c < best.crowd - 0.001) best = { start: s, crowd: c };
+  }
+  return best;
+}
+
+// ---------- Evaluación de una visita ----------
+export function evaluate(place, { pos, date, t, mode, dayEnd = 24 * 60, crowdOverride }) {
+  const hrs = hoursOn(place, date);
+  if (!hrs) return { ok: false, reason: 'Cerrado hoy' };
+  const tr = travel(pos, place, mode);
+  const arrive = t + tr.min;
+  const [open, close] = hrs;
+  if (arrive >= close) return { ok: false, reason: `Cerró a las ${fmt(close)}` };
+  const start = Math.max(arrive, open);
+  const idle = start - arrive;
+  if (idle > 75) return { ok: false, reason: `Abre a las ${fmt(open)}`, opensAt: open };
+  const crowd = crowdOverride ?? crowdAt(place, date, start);
+  const wait = waitMinutes(place, crowd);
+  const end = start + wait + place.duration;
+  if (end > close) return { ok: false, reason: `No da tiempo antes del cierre (${fmt(close)})` };
+  if (end > dayEnd) return { ok: false, reason: 'No da tiempo hoy' };
+  return { ok: true, travel: tr, arrive, start, idle, crowd, wait, end };
+}
+
+export function score(place, ev, { date, lunchPending = false, urgency = 0 }) {
+  let s = (PRIORITY_WEIGHT[place.priority] ?? 150) - ev.travel.min * 1.2 - ev.idle * 0.6 - ev.wait * 0.8 - ev.crowd * 40;
+  const slot = place.slot;
+  if (slot && slot !== 'any') {
+    if (inSlot(slot, date, ev.start)) s += 40;
+    else s -= slot === 'sunset' || slot === 'evening' ? 120 : 20;
+  }
+  if (lunchPending && ev.start < 13 * 60 && ev.end > 15 * 60) s -= 30;
+  return s + urgency;
+}
+
+// ---------- Itinerario completo ----------
+// places: lugares elegidos (con priority/slot/duration ya aplicados)
+// trip: { arrival:'YYYY-MM-DDTHH:MM', departure, hotel:{lat,lng,name}, dayStart, dayEnd, mode, lunch, arrivalBuffer, departureBuffer }
+// opts: { visited:{id:true}, now:{date,min,pos} }  -> replanifica desde ahora y desde tu ubicación
+export function planTrip(places, trip, opts = {}) {
+  const arrival = splitDateTime(trip.arrival);
+  const departure = splitDateTime(trip.departure);
+  if (!arrival.date || !departure.date || departure.date < arrival.date) {
+    return { days: [], unscheduled: [], error: 'Revisa las fechas de llegada y salida.' };
+  }
+  const mode = trip.mode || 'mixto';
+  const hotel = trip.hotel?.lat ? trip.hotel : PARIS;
+  const dates = [];
+  for (let d = arrival.date; d <= departure.date; d = addDays(d, 1)) dates.push(d);
+
+  const remaining = places.filter((p) => !opts.visited?.[p.id]);
+  const days = [];
+
+  for (let i = 0; i < dates.length; i++) {
+    const date = dates[i];
+    if (opts.now && date < opts.now.date) continue;
+    let start = toMin(trip.dayStart || '09:00');
+    let end = toMin(trip.dayEnd || '22:00');
+    if (date === arrival.date) start = Math.max(start, arrival.min + Number(trip.arrivalBuffer ?? 90));
+    if (date === departure.date) end = Math.min(end, departure.min - Number(trip.departureBuffer ?? 180));
+    let pos = hotel;
+    if (opts.now && date === opts.now.date) {
+      start = Math.max(start, opts.now.min);
+      if (opts.now.pos) pos = opts.now.pos;
+    }
+    const day = { date, dow: dow(date), start, end, sunset: sunset(date), items: [] };
+    days.push(day);
+    if (end - start < 45) { day.note = 'Día sin tiempo libre para visitas'; continue; }
+
+    const laterDates = dates.slice(i + 1);
+    let t = start;
+    let lunchDone = !trip.lunch || start >= 14 * 60 || end <= 13 * 60;
+
+    while (t < end - 15) {
+      if (!lunchDone && t >= 12 * 60 + 30) {
+        day.items.push({ type: 'lunch', start: t, end: t + 60 });
+        t += 60;
+        lunchDone = true;
+        continue;
+      }
+      let best = null;
+      for (const p of remaining) {
+        const ev = evaluate(p, { pos, date, t, mode, dayEnd: end });
+        if (!ev.ok) continue;
+        const openLater = laterDates.filter((d) => hoursOn(p, d)).length;
+        const urgency = openLater === 0 ? 80 : openLater === 1 ? 30 : 0;
+        const s = score(p, ev, { date, lunchPending: !lunchDone, urgency });
+        if (!best || s > best.s) best = { p, ev, s };
+      }
+      if (!best) {
+        const last = day.items[day.items.length - 1];
+        if (last?.type === 'free') last.end = Math.min(t + 30, end);
+        else day.items.push({ type: 'free', start: t, end: Math.min(t + 30, end) });
+        t += 30;
+        continue;
+      }
+      day.items.push({ type: 'visit', place: best.p, from: pos, ...best.ev });
+      remaining.splice(remaining.indexOf(best.p), 1);
+      t = best.ev.end;
+      pos = best.p;
+    }
+    while (day.items.length && day.items[day.items.length - 1].type === 'free') day.items.pop();
+  }
+
+  const tripDates = days.map((d) => d.date);
+  const unscheduled = remaining.map((p) => ({
+    place: p,
+    reason: tripDates.some((d) => hoursOn(p, d)) ? 'No cupo en el tiempo disponible: súbele la prioridad o quita otro lugar' : 'Cerrado todos los días de tu viaje',
+  }));
+  return { days, unscheduled };
+}
+
+// ---------- Recomendación "¿Qué hago ahora?" ----------
+// reports: { id: { level: 0-1, at: epochMs } } aforo reportado por ti en el lugar (válido 90 min)
+export function rankNow(places, { pos, date, min, mode = 'mixto', reports = {}, nowMs = Date.now() }) {
+  return places.map((p) => {
+    const r = reports[p.id];
+    const fresh = r && nowMs - r.at < 90 * 60 * 1000 ? r.level : undefined;
+    const ev = evaluate(p, { pos, date, t: min, mode, crowdOverride: fresh });
+    const tr = travel(pos, p, mode);
+    if (!ev.ok) {
+      const bt = bestTime(p, date, min + tr.min);
+      return { place: p, ok: false, reason: ev.reason, travel: tr, best: bt, score: -1e6 + (PRIORITY_WEIGHT[p.priority] ?? 0) };
+    }
+    const best = bestTime(p, date, ev.start);
+    const s = score(p, ev, { date, lunchPending: false });
+    const reasons = [];
+    reasons.push(`${tr.min} min ${tr.how}`);
+    reasons.push(`aforo ${crowdLevel(ev.crowd).label.toLowerCase()} (${Math.round(ev.crowd * 100)}%)${fresh !== undefined ? ' · reportado' : ''}`);
+    if (ev.wait) reasons.push(`~${ev.wait} min de fila`);
+    if (ev.idle) reasons.push(`abre a las ${fmt(ev.start)}`);
+    let later = null;
+    if (best && best.start > ev.start + 45 && best.crowd < ev.crowd - 0.15) {
+      later = `Mejor a las ${fmt(best.start)} (aforo ${Math.round(best.crowd * 100)}%)`;
+    }
+    return { place: p, ok: true, ev, travel: tr, best, later, reasons, score: s - (later ? 25 : 0) };
+  }).sort((a, b) => b.score - a.score);
+}
+
+export function mapsLink(from, to, mode = 'transit') {
+  const o = from ? `&origin=${from.lat},${from.lng}` : '';
+  return `https://www.google.com/maps/dir/?api=1${o}&destination=${to.lat},${to.lng}&travelmode=${mode}`;
+}

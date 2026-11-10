@@ -86,3 +86,11 @@ nav.bottom button { font: inherit; background: none; border: 0; color: var(--mut
 nav.bottom button span { font-size: .72rem; }
 nav.bottom button.active { color: var(--accent); }
 .toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); background: #1d2433; color: #fff; padding: 10px 16px; border-radius: 10px; z-index: 2000; max-width: 90vw; font-size: .9rem; }
+
+.add-card { border: 2px dashed var(--brand); }
+.found { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin: 8px 0; }
+.found h4 { margin: 0 0 2px; font-size: .98rem; }
+.found .week { font-size: .82rem; margin: 6px 0; }
+.tag { display: inline-block; font-size: .72rem; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.tag.ok { color: var(--low); border-color: var(--low); }
+.tag.warn { color: var(--high); border-color: var(--high); }

@@ -1,4 +1,5 @@
 import { PLACES, CATEGORIES, SLOTS, hours } from './data.js';
+import { searchPlaces } from './osm.js';
 import {
   PARIS, PRIORITY_LABEL, planTrip, rankNow, parisNow, addDays, fmt, toMin, crowdAt, crowdLevel,
   hoursOn, haversineKm, mapsLink, sunset, dow, splitDateTime,
@@ -100,6 +101,58 @@ function renderResults(el, results, kind) {
   el._results = results;
 }
 
+// ---------------- Agregar lugar escribiendo solo el nombre ----------------
+const norm = (x) => String(x).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+// Resume un horario semanal: "Lun–Vie 09:00–18:00 · Sáb 10:00–17:00 · Dom cerrado"
+function weekSummary(h) {
+  const label = (x) => (!x ? 'cerrado' : x[0] === 0 && x[1] >= 1440 ? '24 h' : `${fmt(x[0])}–${fmt(x[1])}`);
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const groups = [];
+  for (const d of order) {
+    const l = label(h[d]);
+    const g = groups[groups.length - 1];
+    if (g && g.l === l) g.to = d; else groups.push({ from: d, to: d, l });
+  }
+  if (groups.length === 1) return `Todos los días ${groups[0].l}`;
+  return groups.map((g) => `${DAY_SHORT[g.from]}${g.to !== g.from ? `–${DAY_SHORT[g.to]}` : ''} ${g.l}`).join(' · ');
+}
+
+async function searchAndShow() {
+  const q = $('#c-query').value.trim();
+  const out = $('#c-results');
+  if (q.length < 2) return;
+  const nq = norm(q);
+  const local = allPlaces().filter((p) => norm(p.name).includes(nq) || nq.includes(norm(p.name)));
+  const localHtml = local.map((p) => `<div class="found">
+      <h4>${(CATEGORIES[p.category] || CATEGORIES.monumento).icon} ${esc(p.name)}</h4>
+      <p class="muted small">Ya está en la app con su horario y aforo.</p>
+      ${state.selected[p.id] ? '<span class="tag ok">✓ Elegido</span>' : `<button class="btn small" data-action="select-found" data-id="${esc(p.id)}">✓ Lo quiero</button>`}
+    </div>`).join('');
+  out.innerHTML = `${localHtml}<p class="muted">🔎 Buscando "${esc(q)}" en el mapa…</p>`;
+  const month = Number(splitDateTime(state.trip.arrival).date?.slice(5, 7)) - 1;
+  try {
+    let found = await searchPlaces(`${q}, Paris`, month);
+    if (!found.length) found = await searchPlaces(q, month);
+    const known = new Set(state.custom.map((p) => p.osm));
+    found = found.filter((f, i) => found.findIndex((g) => g.osm === f.osm) === i);
+    ui.found = found;
+    out.innerHTML = localHtml + (found.length ? found.map((f, i) => {
+      const cat = CATEGORIES[f.category] || CATEGORIES.monumento;
+      const tag = f.hoursSource === 'osm' ? '<span class="tag ok">Horario oficial (OpenStreetMap)</span>'
+        : '<span class="tag warn">Horario típico estimado: verifícalo</span>';
+      return `<div class="found">
+        <h4>${cat.icon} ${esc(f.name)}</h4>
+        <p class="muted small">${esc(f.address)} · ${cat.label} · ~${f.duration} min</p>
+        <p class="week">🕘 ${weekSummary(f.hours)}<br>${tag}</p>
+        ${known.has(f.osm) ? '<span class="tag ok">✓ Ya está en tu lista</span>' : `<button class="btn small" data-action="add-found" data-i="${i}">➕ Agregar</button>`}
+      </div>`;
+    }).join('') : (local.length ? '' : '<p class="muted">No lo encontré. Prueba con otro nombre o agrégalo a mano.</p>'));
+  } catch {
+    out.innerHTML = `${localHtml}<p class="muted">No se pudo buscar (¿sin conexión?). Puedes agregarlo a mano.</p>`;
+  }
+}
+
 // ---------------- Aforo (mini gráfico) ----------------
 function crowdBars(place, date, nowMin) {
   const hrs = hoursOn(place, date);
@@ -138,13 +191,16 @@ function referenceDate() {
 }
 
 function renderPlaces() {
-  const date = referenceDate();
-  const now = parisNow();
   $('#cat-chips').innerHTML = [['all', 'Todos'], ...Object.entries(CATEGORIES).map(([k, v]) => [k, `${v.icon} ${v.label}`])]
     .map(([k, l]) => `<button class="chip ${ui.cat === k ? 'active' : ''}" data-action="cat" data-cat="${k}">${l}</button>`).join('');
   $('#btn-only-selected').classList.toggle('active', ui.onlySelected);
-  $('#btn-only-selected').textContent = ui.onlySelected ? 'Ver todos' : `Ver solo elegidos (${Object.keys(state.selected).length})`;
+  renderPlacesList();
+}
 
+function renderPlacesList() {
+  const date = referenceDate();
+  const now = parisNow();
+  $('#btn-only-selected').textContent = ui.onlySelected ? 'Ver todos' : `Ver solo elegidos (${Object.keys(state.selected).length})`;
   const q = ui.query.trim().toLowerCase();
   const list = allPlaces().filter((p) =>
     (ui.cat === 'all' || p.category === ui.cat) &&
@@ -165,6 +221,7 @@ function renderPlaces() {
         </div>
         ${crowdBars(p, date, date === now.date ? now.min : null)}
         ${p.tip ? `<p class="tip">💡 ${esc(p.tip)}</p>` : ''}
+        ${p.custom ? `<p class="small muted">🕘 ${weekSummary(p.hours)} ${p.hoursSource === 'estimado' ? '<span class="tag warn">horario estimado</span>' : p.hoursSource === 'osm' ? '<span class="tag ok">OpenStreetMap</span>' : ''}${p.website ? ` · <a href="${esc(p.website)}" target="_blank" rel="noopener">web</a>` : ''}</p>` : ''}
         ${sel ? `<div class="controls">
           <select data-action="priority" data-id="${esc(p.id)}">${[3, 2, 1].map((v) => `<option value="${v}" ${sel.priority === v ? 'selected' : ''}>${PRIORITY_LABEL[v]}</option>`).join('')}</select>
           <select data-action="slot" data-id="${esc(p.id)}">${Object.entries(SLOTS).map(([k, l]) => `<option value="${k}" ${(sel.slot ?? p.slot) === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
@@ -404,14 +461,30 @@ document.addEventListener('click', async (e) => {
       try { await navigator.clipboard.writeText(text); toast('Plan copiado. ¡Pégalo en WhatsApp o Notas!'); } catch { toast('No se pudo copiar'); }
       break;
     }
-    case 'hotel-search':
-    case 'c-search': {
-      const isHotel = action === 'hotel-search';
-      const q = $(isHotel ? '#hotel-query' : '#c-query').value.trim();
+    case 'hotel-search': {
+      const q = $('#hotel-query').value.trim();
       if (!q) return;
-      const out = $(isHotel ? '#hotel-results' : '#c-results');
+      const out = $('#hotel-results');
       out.innerHTML = '<p class="muted">Buscando…</p>';
-      try { renderResults(out, await geocode(`${q}, Paris`), isHotel ? 'hotel' : 'custom'); } catch { out.innerHTML = '<p class="muted">No se pudo buscar (¿sin conexión?)</p>'; }
+      try { renderResults(out, await geocode(`${q}, Paris`), 'hotel'); } catch { out.innerHTML = '<p class="muted">No se pudo buscar (¿sin conexión?)</p>'; }
+      break;
+    }
+    case 'c-search': await searchAndShow(); break;
+    case 'add-found': {
+      const f = ui.found?.[Number(el.dataset.i)];
+      if (!f) return;
+      const id = `custom-${Date.now()}`;
+      state.custom.push({ ...f, id, custom: true });
+      state.selected[id] = { priority: 2 };
+      el.outerHTML = '<span class="tag ok">✓ Agregado a tu lista</span>';
+      save(); renderPlacesList();
+      toast(`${f.name} agregado. Ya entra en tu plan.`);
+      break;
+    }
+    case 'select-found': {
+      if (!state.selected[id]) state.selected[id] = { priority: 2 };
+      el.outerHTML = '<span class="tag ok">✓ Elegido</span>';
+      save(); renderPlacesList();
       break;
     }
     case 'pick-hotel': {
@@ -424,14 +497,6 @@ document.addEventListener('click', async (e) => {
     case 'hotel-here': {
       const pos = await locate();
       if (pos) { state.trip.hotel = { lat: pos.lat, lng: pos.lng, name: 'Mi alojamiento' }; update(); toast('Alojamiento guardado'); }
-      break;
-    }
-    case 'pick-custom': {
-      const r = $('#c-results')._results[Number(el.dataset.i)];
-      ui.customPos = r;
-      if (!$('#c-name').value) $('#c-name').value = r.name.split(',')[0];
-      $('#c-coords').textContent = `📍 ${r.name.split(',').slice(0, 2).join(',')}`;
-      $('#c-results').innerHTML = '';
       break;
     }
     case 'c-here': {
@@ -451,11 +516,11 @@ document.addEventListener('click', async (e) => {
       state.custom.push({
         id, custom: true, name, category: $('#c-cat').value, lat: ui.customPos.lat, lng: ui.customPos.lng,
         duration: Math.max(10, Number($('#c-dur').value) || 60), popularity: 0.5, maxWait: 10, slot: 'any',
-        hours: hours(open, close, { closed }),
+        hours: hours(open, close, { closed }), hoursSource: 'manual',
       });
       state.selected[id] = { priority: 2 };
       ui.customPos = null;
-      $('#c-name').value = $('#c-query').value = '';
+      $('#c-name').value = '';
       $('#c-coords').textContent = 'Sin ubicación';
       $('#custom-form').open = false;
       update(); toast(`${name} agregado a tu lista`);
@@ -496,7 +561,8 @@ document.addEventListener('change', (e) => {
   }
 });
 
-$('#place-search').addEventListener('input', (e) => { ui.query = e.target.value; renderPlaces(); });
+$('[data-form=c-search]').addEventListener('submit', (e) => { e.preventDefault(); searchAndShow(); });
+$('#place-search').addEventListener('input', (e) => { ui.query = e.target.value; renderPlacesList(); });
 
 // Formulario de lugar propio: tipos y días.
 $('#c-cat').innerHTML = Object.entries(CATEGORIES).map(([k, v]) => `<option value="${k}">${v.icon} ${v.label}</option>`).join('');

@@ -2,7 +2,8 @@
 
 App web (funciona en el celular, sin instalar nada) para organizar un viaje a París:
 
-- **📌 Lugares** – 32 lugares de París precargados (Torre Eiffel, Louvre, Orsay, Notre-Dame, Versalles, Montmartre, Catacumbas…) con horarios, días de cierre, duración sugerida y consejos. Puedes **agregar tus propios lugares** buscando la dirección o con tu ubicación actual. A cada uno le pones prioridad (*Imprescindible / Me gustaría / Si da tiempo*) y momento preferido (mañana, tarde, noche, atardecer).
+- **📌 Lugares** – 32 lugares de París precargados (Torre Eiffel, Louvre, Orsay, Notre-Dame, Versalles, Montmartre, Catacumbas…) con horarios, días de cierre, duración sugerida y consejos.
+  **Agregar cualquier otro lugar es automático:** escribes solo el nombre (“Café de Flore”, “Musée Carnavalet”) y la app busca en OpenStreetMap la ubicación, el tipo de lugar, el horario de cada día y qué tan popular es. Si OSM no tiene el horario, pone uno típico para ese tipo de lugar y lo marca como “estimado”. Los restaurantes y cafés que agregues se usan como tu almuerzo o cena. A cada uno le pones prioridad (*Imprescindible / Me gustaría / Si da tiempo*) y momento preferido (mañana, tarde, noche, atardecer).
 - **✈️ Viaje** – fecha y hora de llegada y salida, hotel, a qué hora empiezas y terminas el día, si te mueves a pie o en metro y si reservas hora de almuerzo.
 - **🗓️ Plan** – arma automáticamente el itinerario día por día: respeta horarios y cierres (p. ej. el Louvre no abre los martes), minimiza traslados, evita las horas de más aforo, programa los miradores al atardecer y deja lo que no cabe en una lista con el motivo. Mapa con la ruta del día, botón **“Cómo llegar”** (Google Maps) y **“Replanificar desde aquí”**, que usa tu ubicación y la hora actual para reordenar lo que te falta.
 - **⚡ Ahora** – detecta tu ubicación (GPS) y te dice **a dónde ir en este momento**: abierto, cerca, con menos aforo, y si conviene ir más tarde (“Mejor a las 18:30, aforo 30%”).
@@ -32,6 +33,7 @@ Abre la URL en el teléfono y elige “Agregar a pantalla de inicio”: funciona
 ## Estructura
 
 - `js/data.js` – catálogo de lugares, horarios y curvas de aforo.
+- `js/osm.js` – búsqueda automática en OpenStreetMap y lectura de horarios (`opening_hours`).
 - `js/planner.js` – motor: tiempos de traslado, aforo, puesta de sol, armado del itinerario y recomendaciones.
 - `js/app.js` – interfaz.
 - `tests/` – pruebas (`node --test`).

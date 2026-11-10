@@ -65,26 +65,31 @@
         </div>
       </div>
 
-      <details class="card" id="custom-form">
-        <summary><strong>➕ Agregar un lugar propio</strong></summary>
-        <label>Nombre<input id="c-name" placeholder="Ej: Café de Flore"></label>
-        <label>Buscar dirección
-          <div class="row gap"><input id="c-query" placeholder="Dirección o nombre en París"><button class="btn small" data-action="c-search">Buscar</button></div>
-        </label>
+      <div class="card add-card">
+        <h3>➕ Agregar cualquier lugar</h3>
+        <p class="muted small">Escribe el nombre y la app busca sola la ubicación, el tipo y el horario.</p>
+        <form class="row gap" data-form="c-search" onsubmit="return false">
+          <input id="c-query" placeholder="Ej: Café de Flore, Musée Carnavalet, Ladurée…" autocomplete="off" enterkeyhint="search">
+          <button class="btn" data-action="c-search">Buscar</button>
+        </form>
         <div id="c-results"></div>
-        <div class="row gap wrap">
-          <button class="btn small ghost" data-action="c-here">📍 Usar mi ubicación actual</button>
-          <span class="muted" id="c-coords">Sin ubicación</span>
-        </div>
-        <div class="grid2">
-          <label>Tipo<select id="c-cat"></select></label>
-          <label>Duración (min)<input id="c-dur" type="number" min="10" step="5" value="60"></label>
-          <label>Abre<input id="c-open" type="time" value="09:00"></label>
-          <label>Cierra<input id="c-close" type="time" value="20:00"></label>
-        </div>
-        <fieldset class="days"><legend>Cerrado los días</legend><div id="c-closed"></div></fieldset>
-        <button class="btn" data-action="c-add">Agregar lugar</button>
-      </details>
+        <details id="custom-form">
+          <summary class="muted small">¿No aparece? Agrégalo a mano</summary>
+          <label>Nombre<input id="c-name" placeholder="Ej: Casa de un amigo"></label>
+          <div class="row gap wrap">
+            <button class="btn small ghost" data-action="c-here">📍 Usar mi ubicación actual</button>
+            <span class="muted" id="c-coords">Sin ubicación</span>
+          </div>
+          <div class="grid2">
+            <label>Tipo<select id="c-cat"></select></label>
+            <label>Duración (min)<input id="c-dur" type="number" min="10" step="5" value="60"></label>
+            <label>Abre<input id="c-open" type="time" value="09:00"></label>
+            <label>Cierra<input id="c-close" type="time" value="20:00"></label>
+          </div>
+          <fieldset class="days"><legend>Cerrado los días</legend><div id="c-closed"></div></fieldset>
+          <button class="btn" data-action="c-add">Agregar lugar</button>
+        </details>
+      </div>
 
       <div id="places-list"></div>
     </section>

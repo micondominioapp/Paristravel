@@ -215,21 +215,32 @@ export function planTrip(places, trip, opts = {}) {
     let lunchDone = !trip.lunch || start >= 14 * 60 || end <= 13 * 60;
 
     while (t < end - 15) {
-      if (!lunchDone && t >= 12 * 60 + 30) {
+      const lunchTime = !lunchDone && t >= 12 * 60 + 30;
+      let best = null;
+      for (const p of remaining) {
+        const isFood = p.category === 'comida';
+        if (lunchTime && !isFood) continue; // a la hora de almorzar solo vale un restaurante de tu lista
+        const ev = evaluate(p, { pos, date, t, mode, dayEnd: end });
+        if (!ev.ok) continue;
+        if (lunchTime && ev.travel.min > 30) continue;
+        const openLater = laterDates.filter((d) => hoursOn(p, d)).length;
+        const urgency = openLater === 0 ? 80 : openLater === 1 ? 30 : 0;
+        let s = score(p, ev, { date, lunchPending: !lunchDone, urgency });
+        if (isFood) {
+          // Los restaurantes y cafés van solo a la hora de almorzar o cenar.
+          const meal = (!lunchDone && ev.start >= 11 * 60 + 45 && ev.start <= 14 * 60 + 30) || (ev.start >= 19 * 60 && ev.start <= 21 * 60 + 30);
+          if (!meal) continue;
+          s += 80;
+        }
+        if (!best || s > best.s) best = { p, ev, s };
+      }
+      if (lunchTime && !best) {
         day.items.push({ type: 'lunch', start: t, end: t + 60 });
         t += 60;
         lunchDone = true;
         continue;
       }
-      let best = null;
-      for (const p of remaining) {
-        const ev = evaluate(p, { pos, date, t, mode, dayEnd: end });
-        if (!ev.ok) continue;
-        const openLater = laterDates.filter((d) => hoursOn(p, d)).length;
-        const urgency = openLater === 0 ? 80 : openLater === 1 ? 30 : 0;
-        const s = score(p, ev, { date, lunchPending: !lunchDone, urgency });
-        if (!best || s > best.s) best = { p, ev, s };
-      }
+      if (best && best.p.category === 'comida' && best.ev.start >= 11 * 60 + 30 && best.ev.start <= 14 * 60 + 30) lunchDone = true;
       if (!best) {
         const last = day.items[day.items.length - 1];
         if (last?.type === 'free') last.end = Math.min(t + 30, end);

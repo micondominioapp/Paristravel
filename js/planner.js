@@ -234,11 +234,19 @@ export function planTrip(places, trip, opts = {}) {
       start = Math.max(start, opts.now.min);
       if (opts.now.pos) pos = opts.now.pos;
     }
-    const day = { date, dow: dow(date), start, end, sunset: sunset(date), items: [] };
-    days.push(day);
     const fixedToday = fixedAll
       .filter((p) => p.fixed.date === date && !unscheduled.some((u) => u.place === p))
       .sort((x, y) => x.fixed.start - y.fixed.start);
+    // Una reserva antes de la hora habitual de inicio adelanta el día para llegar a tiempo.
+    if (fixedToday.length) {
+      let earliest = 0;
+      if (date === arrival.date) earliest = arrival.min + Number(trip.arrivalBuffer ?? 90);
+      if (opts.now && date === opts.now.date) earliest = Math.max(earliest, opts.now.min);
+      const leave = fixedToday[0].fixed.start - travel(pos, fixedToday[0], mode).min - 5;
+      if (leave < start) start = Math.max(earliest, leave);
+    }
+    const day = { date, dow: dow(date), start, end, sunset: sunset(date), items: [] };
+    days.push(day);
     if (end - start < 45 && !fixedToday.length) { day.note = 'Día sin tiempo libre para visitas'; continue; }
 
     const laterDates = dates.slice(i + 1);

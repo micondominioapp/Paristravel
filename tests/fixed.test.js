@@ -66,3 +66,19 @@ test('el tiempo libre antes de la reserva llega hasta la hora de salir', () => {
   assert.equal(prev.end + r.travel.min, r.arrive);
   assert.ok(r.start - r.arrive <= 5);
 });
+
+test('una reserva a las 8:00 adelanta el inicio del día (aunque empiece a las 9:00)', () => {
+  const hotel = { lat: 48.8846, lng: 2.3197, name: 'B&B Hotel Paris 17 Batignolles' };
+  const carette = { ...resto('2026-12-03', 8, 0), name: 'Carette', lat: 48.8635, lng: 2.2870, hours: Array(7).fill([7 * 60 + 30, 23 * 60]) };
+  const plan = planTrip([carette, pick('louvre')], { ...trip, hotel });
+  const d = plan.days.find((x) => x.date === '2026-12-03');
+  const r = d.items.find((i) => i.fixed);
+  assert.equal(r.start, 8 * 60);
+  assert.deepEqual(r.warnings, []);
+  assert.ok(r.arrive <= 8 * 60, `llega a las ${r.arrive / 60}`);
+  assert.ok(d.start < 8 * 60);
+  // el día de llegada no se puede adelantar más allá de la llegada: ahí sí avisa
+  const late = planTrip([{ ...carette, fixed: { date: '2026-12-02', start: 8 * 60 } }], { ...trip, arrival: '2026-12-02T08:00', arrivalBuffer: 90, hotel });
+  const r2 = late.days[0].items.find((i) => i.fixed);
+  assert.ok(r2.warnings.some((w) => /tarde/.test(w)));
+});

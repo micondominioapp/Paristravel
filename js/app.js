@@ -418,7 +418,7 @@ function renderPlan() {
       const p = it.place;
       const cat = CATEGORIES[p.category] || CATEGORIES.monumento;
       return `<li><span class="time">${fmt(it.start)}</span><div>
-        <div class="travel">🚶 ${it.travel.min} min ${it.travel.how} desde ${esc(it.from.name || 'el punto anterior')}${it.idle ? ` · esperas ${it.idle} min a que abra` : ''}</div>
+        <div class="travel">🚶 ${it.travel.min} min ${it.travel.how} desde ${esc(it.from.name || 'el punto anterior')}${it.fixed ? ` · <strong>sal a las ${fmt(it.arrive - it.travel.min)}</strong> para llegar ${fmt(it.arrive)}` : (it.idle ? ` · esperas ${it.idle} min a que abra` : '')}</div>
         <strong><span class="num">${n}</span>${cat.icon} ${esc(p.name)}</strong>${it.fixed ? ' <span class="tag ok">📌 Reserva</span>' : ''}
         ${addressLine(p)}
         ${(it.warnings || []).map((w) => `<div class="small" style="color:var(--max)">⚠️ ${esc(w)}</div>`).join('')}

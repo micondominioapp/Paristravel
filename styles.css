@@ -117,3 +117,7 @@ nav.bottom button.active { color: var(--accent); }
 .free-hint { color: var(--low); }
 .warn-box { background: #fdecea; color: #7a1d14; border-radius: 10px; padding: 10px; margin: 6px 0; font-size: .9rem; }
 @media (prefers-color-scheme: dark) { .warn-box { background: #3a1d1a; color: #f6c9c2; } }
+.when { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.when select, .when input { width: auto; padding: 6px 8px; font-size: .85rem; }
+.when .w-date { flex: 1 1 190px; }
+.added { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }

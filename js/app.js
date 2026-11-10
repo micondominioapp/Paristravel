@@ -138,6 +138,45 @@ function weekSummary(h) {
   return groups.map((g) => `${DAY_SHORT[g.from]}${g.to !== g.from ? `–${DAY_SHORT[g.to]}` : ''} ${g.l}`).join(' · ');
 }
 
+// Selector de cuándo ir, para elegir día/hora/prioridad al agregar desde la búsqueda.
+function whenPicker(btnHtml) {
+  const dates = tripDates();
+  return `<div class="when">
+    <select class="w-date" aria-label="Día">
+      <option value="">📅 Día: que el plan decida</option>
+      ${dates.map((d) => `<option value="${d}">📌 ${DAY_NAMES[dow(d)]} ${d.slice(8)}/${d.slice(5, 7)}</option>`).join('')}
+    </select>
+    <input type="time" class="w-time" aria-label="Hora" title="Hora (opcional: si la pones, queda como reserva fija)">
+    <select class="w-prio" aria-label="Prioridad">
+      ${[3, 2, 1].map((v) => `<option value="${v}" ${v === 2 ? 'selected' : ''}>${PRIORITY_LABEL[v]}</option>`).join('')}
+    </select>
+    ${btnHtml}
+  </div>`;
+}
+
+// Lee el selector y guarda la elección. Devuelve el texto de confirmación o null si falta algo.
+function applyWhen(id, card, place) {
+  const date = card?.querySelector('.w-date')?.value || '';
+  const time = card?.querySelector('.w-time')?.value || '';
+  const priority = Number(card?.querySelector('.w-prio')?.value || 2);
+  if (time && !date) { toast('Elige también el día para esa hora'); card.querySelector('.w-date').focus(); return null; }
+  const sel = { ...(state.selected[id] || {}), priority };
+  if (date) { sel.fixedDate = date; if (time) sel.fixedTime = time; else delete sel.fixedTime; }
+  state.selected[id] = sel;
+  if (!date) return { text: `${place.name} agregado: el plan elige el mejor momento.` };
+  const label = `${DAY_NAMES[dow(date)].toLowerCase()} ${date.slice(8)}/${date.slice(5, 7)}`;
+  if (!time) return { text: `${place.name}: elegiste el ${label}. Pon la hora en la ficha del lugar para fijarla.`, date };
+  const h = hoursOn(place, date);
+  const m = toMin(time);
+  const closed = !h || m < h[0] || m >= h[1];
+  return { text: `📌 ${place.name}: ${label} a las ${time}. Plan reordenado.${closed ? ' ⚠️ Según el horario que conozco está cerrado a esa hora: verifícalo.' : ''}`, date, fixed: true };
+}
+
+function addedHtml(res) {
+  return `<div class="added"><span class="tag ok">✓ Agregado</span> <span class="small">${esc(res.text)}</span>
+    <button class="btn small ghost" data-action="goto-plan" ${res.date ? `data-date="${res.date}"` : ''}>🗓️ Ver en el plan</button></div>`;
+}
+
 let searchSeq = 0;
 async function searchAndShow() {
   const q = $('#c-query').value.trim();
@@ -151,7 +190,7 @@ async function searchAndShow() {
       ${addressLine(p)}
       <p class="small">${priceTag(basePrice(p, referenceDate(), profile()))}</p>
       <p class="muted small">Ya está en la app con su horario, precios y aforo.</p>
-      ${state.selected[p.id] ? '<span class="tag ok">✓ Elegido</span>' : `<button class="btn small" data-action="select-found" data-id="${esc(p.id)}">✓ Lo quiero</button>`}
+      ${state.selected[p.id] ? '<span class="tag ok">✓ Ya lo elegiste (cambia día y hora en su ficha)</span>' : whenPicker(`<button class="btn small" data-action="select-found" data-id="${esc(p.id)}">✓ Lo quiero</button>`)}
     </div>`).join('');
   out.innerHTML = `${localHtml}<p class="muted" id="c-status">🔎 Buscando "${esc(q)}" en el mapa…</p>`;
   hydratePhotos(out);
@@ -175,7 +214,7 @@ async function searchAndShow() {
         <p class="muted small">${f.near ? `A ${f.near.meters} m de ${esc(f.near.name)} · ` : ''}${cat.label} · ~${f.duration} min · <a href="${gmapsLink(f)}" target="_blank" rel="noopener">📷 Ver fotos en Google Maps</a></p>
         <p class="week">🕘 ${weekSummary(f.hours)}<br>${tag}</p>
         <p class="small">${priceTag(basePrice(f, referenceDate(), profile()))}${f.price?.estimate ? ' <span class="tag warn">estimado</span>' : ''}${f.website ? ` · <a href="${esc(f.website)}" target="_blank" rel="noopener">web</a>` : ''}</p>
-        ${known.has(f.osm) ? '<span class="tag ok">✓ Ya está en tu lista</span>' : `<button class="btn small" data-action="add-found" data-i="${i}">➕ Agregar</button>`}
+        ${known.has(f.osm) ? '<span class="tag ok">✓ Ya está en tu lista</span>' : whenPicker(`<button class="btn small" data-action="add-found" data-i="${i}">➕ Agregar</button>`)}
       </div>`;
     }).join('') : (local.length ? '' : '<p class="muted">No lo encontré. Prueba con otro nombre, agrega la zona (ej. "starbucks ópera") o agrégalo a mano.</p>'));
     hydratePhotos(out);
@@ -651,19 +690,33 @@ document.addEventListener('click', async (e) => {
     case 'add-found': {
       const f = ui.found?.[Number(el.dataset.i)];
       if (!f) return;
+      const card = el.closest('.found');
       const id = `custom-${Date.now()}`;
       const { near, ...clean } = f;
-      state.custom.push({ ...clean, id, custom: true });
-      state.selected[id] = { priority: 2 };
-      el.outerHTML = '<span class="tag ok">✓ Agregado a tu lista</span>';
+      const place = { ...clean, id, custom: true };
+      const res = applyWhen(id, card, place);
+      if (!res) return;
+      state.custom.push(place);
+      el.closest('.when').outerHTML = addedHtml(res);
       save(); renderPlacesList();
-      toast(`${f.name} agregado. Ya entra en tu plan.`);
+      toast(res.text);
       break;
     }
     case 'select-found': {
-      if (!state.selected[id]) state.selected[id] = { priority: 2 };
-      el.outerHTML = '<span class="tag ok">✓ Elegido</span>';
+      const card = el.closest('.found');
+      const place = allPlaces().find((p) => p.id === id);
+      const res = applyWhen(id, card, place);
+      if (!res) return;
+      el.closest('.when').outerHTML = addedHtml(res);
       save(); renderPlacesList();
+      toast(res.text);
+      break;
+    }
+    case 'goto-plan': {
+      ui.tab = 'plan';
+      if (el.dataset.date) ui.day = el.dataset.date;
+      render();
+      window.scrollTo(0, 0);
       break;
     }
     case 'pick-hotel': {

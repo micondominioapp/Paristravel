@@ -101,3 +101,10 @@ test('"starbucks ópera" busca Starbucks alrededor de la Ópera, del más cercan
   assert.ok(res[0].near.meters < res[1].near.meters);
   assert.equal(res[0].arrondissement, 2);
 });
+
+test('"le procope" no se divide en "le" + "procope"', async () => {
+  const calls = [];
+  globalThis.fetch = async (url) => { calls.push(new URL(url).searchParams.get('q')); return { ok: true, json: async () => [] }; };
+  await searchPlaces('le procope', 11);
+  assert.ok(!calls.includes('procope, Paris'), calls.join(' | '));
+});

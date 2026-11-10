@@ -197,6 +197,7 @@ export async function searchPlaces(q, month, onStatus = () => {}) {
     for (let k = words.length - 1; k >= 1 && k >= words.length - 2; k--) {
       const what = words.slice(0, k).join(' ');
       const where = words.slice(k).join(' ');
+      if (!tokens(what).length || !tokens(where).length) continue; // "le procope" no es "le" cerca de "procope"
       onStatus(`Buscando "${what}" cerca de "${where}"…`);
       const [area] = await nominatim({ q: `${where}, Paris`, limit: '1', viewbox: PARIS_BOX });
       if (!area) continue;
@@ -207,9 +208,10 @@ export async function searchPlaces(q, month, onStatus = () => {}) {
       const areaName = area.namedetails?.['name:es'] || area.name || where;
       const nearPlaces = near.map((r) => {
         const p = placeFromNominatim(r, month);
-        p.near = { name: areaName, meters: Math.round(dist(p, c) * 1000) };
+        const meters = Math.round(dist(p, c) * 1000);
+        if (meters > 40) p.near = { name: areaName, meters };
         return p;
-      }).sort((x, y) => x.near.meters - y.near.meters);
+      }).sort((x, y) => (x.near?.meters ?? 0) - (y.near?.meters ?? 0));
       results = [...nearPlaces, ...results];
       break;
     }

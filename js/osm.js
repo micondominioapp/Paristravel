@@ -1,6 +1,18 @@
 // Búsqueda automática de lugares en OpenStreetMap: ubicación, tipo, horario y popularidad.
 import { hours } from './data.js';
 import { tokens } from './match.js';
+import { FOOD_ESTIMATE } from './prices.js';
+
+// Precio desde las etiquetas de OSM (fee / charge) o estimación por tipo de local.
+export function priceFromOsm(type, category, ex = {}) {
+  const charge = String(ex.charge || '').match(/(\d+(?:[.,]\d+)?)\s*(?:EUR|€)/i);
+  if (charge) return { adult: Number(charge[1].replace(',', '.')), approx: true, source: 'OpenStreetMap' };
+  if (ex.fee === 'no') return { free: true, source: 'OpenStreetMap' };
+  if (category === 'comida') return { range: FOOD_ESTIMATE[type] || [15, 35], unit: 'por persona', estimate: true };
+  if (['parque', 'barrio', 'paseo'].includes(category)) return { free: true, estimate: true };
+  if (category === 'compras') return { free: true, estimate: true, options: ['Entrar es gratis'] };
+  return null; // desconocido: se muestra "consulta la web"
+}
 
 const DAYS = { Su: 0, Mo: 1, Tu: 2, We: 3, Th: 4, Fr: 5, Sa: 6 };
 const MONTHS = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
@@ -125,6 +137,7 @@ export function placeFromNominatim(r, month) {
     hours: parsed || def.hours(),
     hoursSource: parsed ? 'osm' : 'estimado',
     openingHoursRaw: oh || null,
+    price: priceFromOsm(r.type, category, ex),
     postcode: addr.postcode || null,
     arrondissement: arrondissement(addr.postcode, [addr.city_district, addr.suburb, addr.borough].filter(Boolean).join(' ')),
     city: addr.city || addr.town || addr.village || null,

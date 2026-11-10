@@ -38,7 +38,7 @@
       <div class="card">
         <div class="row between wrap">
           <h2>Mi itinerario</h2>
-          <div class="row gap">
+          <div class="row gap wrap">
             <button class="btn" data-action="replan-here">📍 Replanificar desde aquí</button>
             <button class="btn ghost" data-action="replan-reset" id="btn-replan-reset" hidden>Plan original</button>
             <button class="btn" data-action="share-trip">🔗 Compartir viaje</button>
@@ -107,6 +107,19 @@
           <label>Antes de irme necesito (min)<input type="number" name="departureBuffer" min="0" step="15"></label>
           <label>Empiezo el día a las<input type="time" name="dayStart"></label>
           <label>Termino el día a las<input type="time" name="dayEnd"></label>
+          <label>Precios para
+            <select name="residency">
+              <option value="non-eea">No residente en la UE (ej. Latinoamérica, EE. UU.)</option>
+              <option value="eea">Residente o ciudadano de la UE / EEE</option>
+            </select>
+          </label>
+          <label>Edad
+            <select name="age">
+              <option value="adult">26 años o más</option>
+              <option value="young">18 a 25 años</option>
+              <option value="minor">Menor de 18</option>
+            </select>
+          </label>
           <label>Me muevo
             <select name="mode">
               <option value="mixto">A pie y metro (automático)</option>

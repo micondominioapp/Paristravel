@@ -12,6 +12,21 @@ App web (funciona en el celular, sin instalar nada) para organizar un viaje a Pa
 - **🗓️ Plan** – arma automáticamente el itinerario día por día: respeta horarios y cierres (p. ej. el Louvre no abre los martes), minimiza traslados, evita las horas de más aforo, programa los miradores al atardecer y deja lo que no cabe en una lista con el motivo. Mapa con la ruta del día, botón **“Cómo llegar”** (Google Maps) y **“Replanificar desde aquí”**, que usa tu ubicación y la hora actual para reordenar lo que te falta.
 - **⚡ Ahora** – detecta tu ubicación (GPS) y te dice **a dónde ir en este momento**: abierto, cerca, con menos aforo, y si conviene ir más tarde (“Mejor a las 18:30, aforo 30%”).
 
+## Precios y entradas gratis
+
+Cada lugar muestra **tu precio** según lo que elijas en ✈️ Viaje (residente o no de la UE, y edad), porque desde
+enero de 2026 el Louvre, Versalles, la Sainte-Chapelle y la Ópera Garnier cobran más a visitantes de fuera de la UE.
+También muestra quién entra gratis, los **días gratis para todos** (1er domingo del mes, 1er viernes por la noche en
+el Louvre, etc.) y cuáles caen en tu viaje, opciones de entrada, el enlace a la web oficial y consejos de visitantes.
+
+El planificador **aprovecha los días gratis** cuando ahorras €10 o más (si no cabe ese día, lo programa en otro),
+tiene en cuenta que esos días hay más gente, suma el **gasto por día y total** y calcula si te conviene el
+**Paris Museum Pass**. Para restaurantes y cafés agregados por búsqueda da un rango estimado según el tipo de local.
+
+Precios investigados en noviembre de 2026 en webs oficiales y guías (louvre.fr, toureiffel.paris, musee-orsay.fr,
+Visit Paris Region, Centre des monuments nationaux y prensa). Los marcados “aprox.” no se pudieron confirmar en la
+web oficial. **Confirma siempre antes de comprar.**
+
 ## Compartir el itinerario
 
 En **🗓️ Plan** (o en **✈️ Viaje**) toca **🔗 Compartir viaje** y envía el enlace por WhatsApp. Quien lo abra
@@ -46,6 +61,7 @@ Abre la URL en el teléfono y elige “Agregar a pantalla de inicio”: funciona
 - `js/osm.js` – búsqueda automática en OpenStreetMap y lectura de horarios (`opening_hours`).
 - `js/match.js` – búsqueda de nombres en varios idiomas.
 - `js/photos.js` – fotos desde Wikipedia/Wikimedia y mapa de respaldo.
+- `js/prices.js` – precios, gratuidades y Paris Museum Pass.
 - `js/share.js` – enlace para compartir el viaje.
 - `js/planner.js` – motor: tiempos de traslado, aforo, puesta de sol, armado del itinerario y recomendaciones.
 - `js/app.js` – interfaz.

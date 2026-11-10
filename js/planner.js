@@ -1,5 +1,6 @@
 // Motor de planificación: tiempos, distancias, aforo estimado y armado del itinerario.
 import { CATEGORY_CURVES, DAY_FACTOR, SEASON_FACTOR } from './data.js';
+import { freeOnDate, visitCost } from './prices.js';
 
 export const PARIS = { lat: 48.8566, lng: 2.3522, name: 'Centro de París' };
 export const PRIORITY_WEIGHT = { 3: 300, 2: 150, 1: 60 };
@@ -107,6 +108,8 @@ export function crowdAt(place, dateStr, minute) {
     if (diff < 60) c += 0.15 * (1 - diff / 60); // el atardecer atrae gente
   }
   c *= (place.popularity ?? 0.5) * DAY_FACTOR[d] * SEASON_FACTOR[month] * (place.dayBoost?.[d] ?? 1);
+  const free = place.price ? freeOnDate(place, dateStr) : null;
+  if (free && (free.from == null || minute >= free.from)) c *= 1.3; // los días gratis se llenan
   return Math.max(0.03, Math.min(1, c));
 }
 
@@ -180,6 +183,15 @@ export function score(place, ev, { date, lunchPending = false, urgency = 0 }) {
 // places: lugares elegidos (con priority/slot/duration ya aplicados)
 // trip: { arrival:'YYYY-MM-DDTHH:MM', departure, hotel:{lat,lng,name}, dayStart, dayEnd, mode, lunch, arrivalBuffer, departureBuffer }
 // opts: { visited:{id:true}, now:{date,min,pos} }  -> replanifica desde ahora y desde tu ubicación
+// ¿Habrá entrada gratis más tarde hoy o en otro día del viaje (y estará abierto)?
+function freeLater(p, date, start, laterDates) {
+  if (!p.price?.freeRules) return false;
+  const today = freeOnDate(p, date);
+  const hrs = hoursOn(p, date);
+  if (today && today.from != null && start < today.from && hrs && today.from + p.duration <= hrs[1]) return true;
+  return laterDates.some((d) => hoursOn(p, d) && freeOnDate(p, d));
+}
+
 // Un lugar con hora fija (reserva) lleva place.fixed = { date:'YYYY-MM-DD', start: minutos }.
 export function planTrip(places, trip, opts = {}) {
   const arrival = splitDateTime(trip.arrival);
@@ -189,6 +201,7 @@ export function planTrip(places, trip, opts = {}) {
   }
   const mode = trip.mode || 'mixto';
   const hotel = trip.hotel?.lat ? trip.hotel : PARIS;
+  const profile = { residency: trip.residency || 'non-eea', age: trip.age || 'adult' };
   const dates = [];
   for (let d = arrival.date; d <= departure.date; d = addDays(d, 1)) dates.push(d);
 
@@ -248,12 +261,22 @@ export function planTrip(places, trip, opts = {}) {
       for (const p of remaining) {
         const isFood = p.category === 'comida';
         if (lunchTime && !isFood) continue; // a la hora de almorzar solo vale un restaurante de tu lista
-        const ev = evaluate(p, { pos, date, t, mode, dayEnd: end });
+        let ev = evaluate(p, { pos, date, t, mode, dayEnd: end });
+        // Si en menos de 45 min empieza la entrada gratis (ej. Louvre 1er viernes 18:00), espera y entra gratis.
+        const fr = p.price?.freeRules && !opts.noDefer?.has(p.id) ? freeOnDate(p, date) : null;
+        if (ev.ok && fr?.from != null && ev.start < fr.from && fr.from - ev.start <= 45) {
+          const tr = travel(pos, p, mode);
+          const ev2 = evaluate(p, { pos, date, t: fr.from - tr.min, mode, dayEnd: end });
+          if (ev2.ok) ev = { ...ev2, idle: fr.from - (t + tr.min), leaveAt: fr.from - tr.min };
+        }
         if (!ev.ok || ev.end > limit(p)) continue;
         if (lunchTime && ev.travel.min > 30) continue;
         const openLater = laterDates.filter((d) => hoursOn(p, d)).length;
         const urgency = openLater === 0 ? 80 : openLater === 1 ? 30 : 0;
         let s = score(p, ev, { date, lunchPending: !lunchDone, urgency });
+        const cost = visitCost(p, date, ev.start, profile);
+        if (cost.freeToday) s += Math.min(45, cost.saved * 1.5); // aprovecha la entrada gratis
+        else if (cost.amount >= 10 && !opts.noDefer?.has(p.id) && freeLater(p, date, ev.start, laterDates)) continue; // espera el día gratis
         if (isFood) {
           // Los restaurantes y cafés van solo a la hora de almorzar o cenar.
           const meal = (!lunchDone && ev.start >= 11 * 60 + 45 && ev.start <= 14 * 60 + 30) || (ev.start >= 19 * 60 && ev.start <= 21 * 60 + 30);
@@ -270,7 +293,9 @@ export function planTrip(places, trip, opts = {}) {
       }
       if (best) {
         if (best.p.category === 'comida' && isLunchSlot(best.ev.start)) lunchDone = true;
-        day.items.push({ type: 'visit', place: best.p, from: pos, ...best.ev });
+        if (best.ev.leaveAt > t) { addFree(t, best.ev.leaveAt); t = best.ev.leaveAt; }
+        delete best.ev.leaveAt;
+        day.items.push({ type: 'visit', place: best.p, from: pos, ...best.ev, cost: visitCost(best.p, date, best.ev.start, profile) });
         remaining.splice(remaining.indexOf(best.p), 1);
         t = best.ev.end;
         pos = best.p;
@@ -290,7 +315,7 @@ export function planTrip(places, trip, opts = {}) {
         const crowd = crowdAt(nf, date, st);
         day.items.push({
           type: 'visit', fixed: true, place: nf, from: pos, travel: tr, arrive, start: st,
-          idle: 0, crowd, wait: 0, end: st + nf.duration, warnings,
+          idle: 0, crowd, wait: 0, end: st + nf.duration, warnings, cost: visitCost(nf, date, st, profile),
         });
         fixedToday.shift();
         t = st + nf.duration;
@@ -309,13 +334,19 @@ export function planTrip(places, trip, opts = {}) {
       if (it.type === 'free' && it.end - it.start < 10) { day.items.splice(k, 1); k--; }
     }
     while (day.items.length && day.items[day.items.length - 1].type === 'free') day.items.pop();
+    if (!day.items.some((it) => it.type === 'visit')) { day.items = []; day.note = 'Día libre: ya está todo programado. Agrega más lugares si quieres.'; }
   }
 
+  // Si algo quedó fuera por esperar su día gratis, se replanifica sin esperar.
+  const deferredOut = remaining.filter((p) => p.price?.freeRules && !opts.noDefer?.has(p.id));
+  if (deferredOut.length) {
+    return planTrip(places, trip, { ...opts, noDefer: new Set([...(opts.noDefer || []), ...deferredOut.map((p) => p.id)]) });
+  }
   const tripDates = days.map((d) => d.date);
   for (const p of remaining) {
     unscheduled.push({
       place: p,
-      reason: tripDates.some((d) => hoursOn(p, d)) ? 'No cupo en el tiempo disponible: súbele la prioridad o quita otro lugar' : 'Cerrado todos los días de tu viaje',
+      reason: p.price?.closed ? (p.price.note || 'Cerrado') : tripDates.some((d) => hoursOn(p, d)) ? 'No cupo en el tiempo disponible: súbele la prioridad o quita otro lugar' : 'Cerrado todos los días de tu viaje',
     });
   }
   return { days, unscheduled };

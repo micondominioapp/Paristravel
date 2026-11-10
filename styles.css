@@ -103,3 +103,15 @@ nav.bottom button.active { color: var(--accent); }
 .photo .tile-pin { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -100%); font-size: 26px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
 .photo .credit { position: absolute; right: 6px; bottom: 4px; font-size: .65rem; color: #fff; background: rgba(0,0,0,.45); padding: 1px 6px; border-radius: 6px; }
 .addr { font-size: .82rem; margin: 2px 0 4px; }
+
+.prices { margin: 6px 0; font-size: .88rem; }
+.prices .opts { margin: 4px 0; padding-left: 18px; font-size: .82rem; color: var(--muted); }
+.prices > div { margin-top: 3px; }
+.price { font-weight: 600; }
+.price.free { color: var(--low); }
+.price.closed { color: var(--max); }
+.price.unknown { color: var(--muted); font-weight: 400; }
+.prices details { margin-top: 4px; }
+.prices summary { font-size: .82rem; color: var(--brand); }
+.prices details .small > div { margin-top: 3px; }
+.free-hint { color: var(--low); }

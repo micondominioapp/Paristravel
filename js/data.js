@@ -214,3 +214,98 @@ for (const p of PLACES) {
   const [postcode, address, wiki] = INFO[p.id] || [];
   Object.assign(p, { postcode, address, wikipedia: wiki ? `fr:${wiki}` : null });
 }
+
+// ---------------- Precios (investigados en noviembre de 2026) ----------------
+// adult = precio adulto para visitantes de fuera de la UE/EEE; eea = residentes UE/EEE (si es distinto).
+// approx = precio no confirmado en la web oficial. Confírmalo siempre en "web" antes de comprar.
+const WINTER = [10, 11, 0, 1, 2]; // nov–mar
+const U18_EEA = ['u18', 'eea26'];
+const PRICES = {
+  eiffel: { adult: 36.7, freeFor: ['u4'], web: 'https://www.toureiffel.paris',
+    options: ['Cima en ascensor €36,70', '2º piso en ascensor €23,50', 'Escaleras al 2º piso + ascensor a la cima ≈ €28', 'Jóvenes de 12 a 24: tarifa reducida', 'Nuevos precios desde el 11/01/2027 (algo más caros)'],
+    people: 'Muchos visitantes dicen que la vista del 2º piso es más bonita que la de la cima (la ciudad se ve más cerca). Compra con semanas de antelación.' },
+  louvre: { adult: 32, eea: 22, freeFor: U18_EEA, pass: true, web: 'https://www.louvre.fr',
+    freeRules: [{ type: 'firstFridayEvening', from: 18 * 60, exceptMonths: [6, 7] }, { type: 'date', md: '07-14', label: '14 de julio' }],
+    note: 'Desde el 14/01/2026 los visitantes de fuera de la UE pagan €32. Franja horaria obligatoria incluso si es gratis o con Museum Pass.',
+    people: 'La sala de la Mona Lisa es un caos; ve primero a otras alas o a última hora. Los viernes de noche gratis se llenan.' },
+  orsay: { adult: 16, freeFor: U18_EEA, pass: true, web: 'https://www.musee-orsay.fr',
+    freeRules: [{ type: 'firstSunday', booking: true }],
+    options: ['En línea €16 · en taquilla €14', 'Jueves desde las 18:00: €12 en línea'],
+    people: 'El reloj gigante del 5º piso es la foto típica. Los jueves por la noche hay menos gente.' },
+  notredame: { free: true, web: 'https://www.notredamedeparis.fr',
+    options: ['Catedral: gratis (reserva opcional de franja)', 'Torres: €16 solo en línea (incluidas en Museum Pass)', 'Tesoro: ≈ €12'],
+    people: 'Reservar la franja gratuita ahorra mucha fila. Las torres se agotan; resérvalas con tiempo.' },
+  saintechapelle: { adult: 22, eea: 16, freeFor: U18_EEA, pass: true, web: 'https://www.sainte-chapelle.fr',
+    note: 'Desde enero de 2026 los visitantes de fuera de la UE pagan €22.',
+    people: 'Los vitrales impresionan mucho más en un día soleado. La fila de seguridad del Palacio de Justicia puede ser larga.' },
+  arc: { adult: 16, freeFor: U18_EEA, pass: true, web: 'https://www.paris-arc-de-triomphe.fr',
+    seasons: [{ months: [3, 4, 5, 6, 7, 8], adult: 21 }],
+    freeRules: [{ type: 'firstSunday', months: WINTER }],
+    options: ['Oct–mar: €16 en línea / €17 en taquilla', 'Abr–sep: €21 en línea / €22 en taquilla', 'Los miércoles, tarifa baja todo el año'],
+    people: 'Son 284 escalones hasta la terraza. Al anochecer, la vista de los Campos Elíseos iluminados es lo mejor.' },
+  sacrecoeur: { free: true, options: ['Basílica: gratis', 'Cúpula ≈ €8 (en taquilla)', 'Cripta ≈ €4'],
+    people: 'La vista desde la escalinata ya es gratis. Cuidado con los vendedores de pulseras de la subida.' },
+  montmartre: { free: true },
+  orangerie: { adult: 12.5, freeFor: U18_EEA, pass: true, web: 'https://www.musee-orangerie.fr',
+    freeRules: [{ type: 'firstSunday', booking: true }],
+    people: 'Visita corta y tranquila (1 h). Combínala con las Tullerías.' },
+  pantheon: { adult: 13, freeFor: U18_EEA, pass: true, approx: true, web: 'https://www.paris-pantheon.fr',
+    freeRules: [{ type: 'firstSunday', months: WINTER }],
+    options: ['€13 en línea · €14–16 en taquilla', 'Domingo gratis de nov–mar: por confirmar en la web oficial'] },
+  luxembourg: { free: true },
+  garnier: { adult: 25, freeFor: ['u18'], web: 'https://www.operadeparis.fr/visites/palais-garnier',
+    options: ['Visita libre €25 (fuera de la UE)', 'Residentes UE: tarifa más baja con justificante', 'Visita guiada €35 (fuera de la UE)'],
+    note: 'Desde 2026 hay tarifa distinta para visitantes de fuera de la UE. No está en el Museum Pass.',
+    people: 'La gran escalinata y el techo de Chagall valen la pena. Puede cerrar por ensayos: revisa el calendario.' },
+  champs: { free: true },
+  invalides: { adult: 17, freeFor: U18_EEA, pass: true, approx: true, web: 'https://www.musee-armee.fr',
+    freeRules: [{ type: 'date', md: '07-14', label: '14 de julio' }],
+    options: ['Incluye tumba de Napoleón y Museo del Ejército'] },
+  rodin: { adult: 13, freeFor: U18_EEA, pass: true, approx: true, web: 'https://www.musee-rodin.fr',
+    freeRules: [{ type: 'firstSunday', months: [9, 10, 11, 0, 1, 2] }],
+    options: ['€13 (algunas fuentes dicen €14)'],
+    people: 'El jardín con El Pensador es lo mejor; si hace buen tiempo dedícale tiempo.' },
+  catacombes: { adult: 31, web: 'https://www.catacombes.paris.fr',
+    options: ['€31 con audioguía/casco inmersivo', 'Reducida (18–26) €25', '8–17 años €15', 'Menores de 8: gratis'],
+    note: 'Reabrieron el 8/04/2026 con recorrido nuevo. Las entradas salen a la venta solo 7 días antes y se agotan.',
+    people: 'Unas 240 escaleras y 1 h bajo tierra a 14 °C: lleva abrigo ligero y calzado cómodo.' },
+  marais: { free: true },
+  lafayette: { free: true, options: ['Terraza de la azotea: gratis'] },
+  crucero: { adult: 17, approx: true, web: 'https://www.bateaux-mouches.fr',
+    options: ['Paseo de 1 h: ≈ €17–19 adulto', 'Almuerzo o cena a bordo: desde ≈ €85–99'],
+    people: 'Al atardecer o de noche, con la Torre iluminada, es cuando más vale la pena.' },
+  trocadero: { free: true },
+  versailles: { adult: 25, eea: 22, freeFor: U18_EEA, pass: true, web: 'https://www.chateauversailles.fr',
+    seasons: [{ months: [3, 4, 5, 6, 7, 8, 9], adult: 35, eea: 32 }],
+    freeRules: [{ type: 'firstSunday', months: WINTER }],
+    options: ['Pasaporte (palacio + Trianon + jardines): €25 nov–mar / €35 abr–oct (fuera de la UE)', 'Residentes UE: €22 / €32', 'Jardines gratis salvo días de Grandes Eaux (fuentes musicales)'],
+    note: 'Franja horaria obligatoria para entrar al palacio. Domingo gratis de nov–mar: verifícalo en la web oficial.',
+    people: 'Martes y domingos son los días más llenos. Llega a la apertura; los jardines son enormes (hay bicis y carritos).' },
+  montparnasse: { closed: true, note: 'El mirador cerró el 31/03/2026 por obras durante varios años.' },
+  picasso: { adult: 16, freeFor: U18_EEA, pass: true, web: 'https://www.museepicassoparis.fr',
+    freeRules: [{ type: 'firstSunday' }] },
+  tuileries: { free: true },
+  shakespeare: { free: true, options: ['Entrar es gratis; el café de al lado cobra aparte'],
+    people: 'Muy pequeña: suele haber fila en la puerta y no se permiten fotos dentro.' },
+  perelachaise: { free: true },
+  canal: { free: true },
+  latino: { free: true },
+  alexandre: { free: true },
+  vivienne: { free: true },
+  boursecommerce: { adult: 18, approx: true, web: 'https://www.pinaultcollection.com',
+    freeRules: [{ type: 'firstSaturdayEvening', from: 17 * 60 }],
+    options: ['≈ €18–20 según exposición', 'Combinada con Fundación Louis Vuitton: €38'] },
+  vuitton: { adult: 16, approx: true, web: 'https://www.fondationlouisvuitton.fr',
+    options: ['≈ €16–22 según la exposición', 'Combinada con Bourse de Commerce: €38'] },
+  starbucksopera: { range: [5, 10], unit: 'por persona',
+    people: 'Se viene por la decoración (techos pintados y lámparas); los precios son los normales de Starbucks.' },
+};
+for (const p of PLACES) if (PRICES[p.id]) p.price = PRICES[p.id];
+
+// El mirador de Montparnasse está cerrado por obras desde el 31/03/2026.
+{
+  const mp = PLACES.find((p) => p.id === 'montparnasse');
+  mp.hours = Array(7).fill(null);
+  mp.name = 'Torre Montparnasse (mirador) — cerrado por obras';
+  mp.tip = 'Cerró el 31 de marzo de 2026 por obras de renovación durante varios años. Alternativa: la terraza gratis de las Galeries Lafayette.';
+}

@@ -1,6 +1,7 @@
 import { PLACES, CATEGORIES, SLOTS, hours } from './data.js';
 import { searchPlaces, districtLabel, arrondissement } from './osm.js';
 import { photoKey, resolvePhotos, mapTile } from './photos.js';
+import { basePrice, visitCost, freeOnDate, freeRuleText, freeForText, museumPassAdvice, euro, MUSEUM_PASS } from './prices.js';
 import { placeMatches, nameMatches } from './match.js';
 import { encodeTrip, decodeTrip, shareUrl, codeFromHash } from './share.js';
 import {
@@ -27,6 +28,8 @@ function defaultState() {
       dayEnd: '22:00',
       mode: 'mixto',
       lunch: true,
+      residency: 'non-eea',
+      age: 'adult',
       hotel: null,
     },
     selected: {}, // id -> { priority, slot }
@@ -145,7 +148,8 @@ async function searchAndShow() {
       ${photoBox(p)}
       <h4>${(CATEGORIES[p.category] || CATEGORIES.monumento).icon} ${esc(p.name)}</h4>
       ${addressLine(p)}
-      <p class="muted small">Ya está en la app con su horario y aforo.</p>
+      <p class="small">${priceTag(basePrice(p, referenceDate(), profile()))}</p>
+      <p class="muted small">Ya está en la app con su horario, precios y aforo.</p>
       ${state.selected[p.id] ? '<span class="tag ok">✓ Elegido</span>' : `<button class="btn small" data-action="select-found" data-id="${esc(p.id)}">✓ Lo quiero</button>`}
     </div>`).join('');
   out.innerHTML = `${localHtml}<p class="muted" id="c-status">🔎 Buscando "${esc(q)}" en el mapa…</p>`;
@@ -169,6 +173,7 @@ async function searchAndShow() {
         ${addressLine(f)}
         <p class="muted small">${f.near ? `A ${f.near.meters} m de ${esc(f.near.name)} · ` : ''}${cat.label} · ~${f.duration} min · <a href="${gmapsLink(f)}" target="_blank" rel="noopener">📷 Ver fotos en Google Maps</a></p>
         <p class="week">🕘 ${weekSummary(f.hours)}<br>${tag}</p>
+        <p class="small">${priceTag(basePrice(f, referenceDate(), profile()))}${f.price?.estimate ? ' <span class="tag warn">estimado</span>' : ''}${f.website ? ` · <a href="${esc(f.website)}" target="_blank" rel="noopener">web</a>` : ''}</p>
         ${known.has(f.osm) ? '<span class="tag ok">✓ Ya está en tu lista</span>' : `<button class="btn small" data-action="add-found" data-i="${i}">➕ Agregar</button>`}
       </div>`;
     }).join('') : (local.length ? '' : '<p class="muted">No lo encontré. Prueba con otro nombre, agrega la zona (ej. "starbucks ópera") o agrégalo a mano.</p>'));
@@ -228,6 +233,40 @@ async function hydratePhotos(root) {
     el.append(img);
     el.insertAdjacentHTML('beforeend', '<span class="credit">Foto: Wikimedia Commons</span>');
   }
+}
+
+// ---------------- Precios ----------------
+const profile = () => ({ residency: state.trip.residency || 'non-eea', age: state.trip.age || 'adult' });
+
+function priceTag(b) {
+  if (!b || !b.known) return '<span class="price unknown">💶 Precio: consulta la web</span>';
+  if (b.closed) return '<span class="price closed">❌ Cerrado</span>';
+  if (b.free) return `<span class="price free">🆓 ${b.reason && b.reason !== 'Entrada gratuita' ? esc(b.reason) : 'Gratis'}</span>`;
+  if (b.range) return `<span class="price">💶 ${euro(b.range[0])}–${euro(b.range[1])} por persona (estimado)</span>`;
+  return `<span class="price">💶 ${b.approx ? '≈ ' : ''}${euro(b.amount)}</span>`;
+}
+
+// Bloque de precios de la ficha de un lugar: lo esencial visible y el detalle plegado.
+function priceBlock(p) {
+  const pr = p.price;
+  const prof = profile();
+  const b = basePrice(p, referenceDate(), prof);
+  let head = priceTag(b);
+  if (pr?.eea && pr.adult && pr.eea !== pr.adult && !b.free) {
+    head += ` <span class="muted small">${prof.residency === 'eea' ? `(fuera de la UE: ${euro(pr.adult)})` : `(residentes UE: ${euro(pr.eea)})`}</span>`;
+  }
+  if (pr?.pass) head += ' <span class="tag ok">🎫 Museum Pass</span>';
+  if (pr?.approx || pr?.estimate || b.range) head += ' <span class="tag warn">aprox.</span>';
+  const inTrip = pr?.freeRules ? tripDates().filter((d) => freeOnDate(p, d)).map((d) => `${DAY_SHORT[dow(d)]} ${d.slice(8)}/${d.slice(5, 7)}`) : [];
+  if (inTrip.length) head += `<div class="small free-hint">🎉 <strong>Gratis en tu viaje: ${inTrip.join(', ')}</strong></div>`;
+  let more = '';
+  if (pr?.freeFor?.length) more += `<div>🆓 Gratis para: ${esc(freeForText(pr.freeFor))}</div>`;
+  if (pr?.freeRules?.length) more += `<div>🎉 Gratis para todos: ${pr.freeRules.map((r) => esc(freeRuleText(r))).join(' · ')}</div>`;
+  if (pr?.options?.length) more += `<ul class="opts">${pr.options.map((o) => `<li>${esc(o)}</li>`).join('')}</ul>`;
+  if (pr?.note) more += `<div>ℹ️ ${esc(pr.note)}</div>`;
+  if (pr?.people) more += `<div>💬 <em>Lo que dicen los visitantes:</em> ${esc(pr.people)}</div>`;
+  if (pr?.web) more += `<div><a href="${esc(pr.web)}" target="_blank" rel="noopener">🌐 Web oficial: confirma precios y reserva</a></div>`;
+  return `<div class="prices">${head}${more ? `<details><summary>Ver precios, gratuidades y consejos</summary><div class="small">${more}</div></details>` : ''}</div>`;
 }
 
 // ---------------- Aforo (mini gráfico) ----------------
@@ -293,6 +332,7 @@ function renderPlacesList() {
         ${photoBox(p)}
         <h3>${cat.icon} ${esc(p.name)} ${state.visited[p.id] ? '✅' : ''}</h3>
         ${addressLine(p)}
+        ${priceBlock(p)}
         <div class="meta">
           <span>🕘 ${hoursText(p, date)}</span><span>⏱️ ${p.duration} min</span>
           <span>${closedDaysText(p)}</span>${p.booking ? '<span>🎟️ Reserva recomendada</span>' : ''}
@@ -353,7 +393,7 @@ function renderPlan() {
   const visits = plan.days.reduce((n, d) => n + d.items.filter((i) => i.type === 'visit').length, 0);
   const chosen = chosenPlaces().filter((p) => !state.visited[p.id]).length;
   $('#plan-summary').innerHTML = chosen
-    ? `${visits} de ${chosen} lugares organizados en ${plan.days.length} día(s).${state.replan ? ` Replanificado desde tu ubicación a las ${fmt(state.replan.min)}.` : ''} Salida desde: ${esc((state.trip.hotel || PARIS).name || 'hotel')}.`
+    ? `${visits} de ${chosen} lugares organizados en ${plan.days.length} día(s).${state.replan ? ` Replanificado desde tu ubicación a las ${fmt(state.replan.min)}.` : ''} Salida desde: ${esc((state.trip.hotel || PARIS).name || 'hotel')}.<br>💶 <strong>Entradas y comidas del plan: ${costText(costSum(plan.days.flatMap((d) => d.items)))} por persona</strong> <span class="muted small">(${profile().residency === 'eea' ? 'residente UE' : 'no residente UE'}, ${({ adult: '26+', young: '18–25', minor: 'menor de 18' })[profile().age]}; cámbialo en ✈️ Viaje)</span>`
     : 'Aún no elegiste lugares. Ve a <strong>📌 Lugares</strong> y marca lo que quieres conocer.';
 
   if (!plan.days.some((d) => d.date === ui.day)) {
@@ -380,7 +420,7 @@ function renderPlan() {
         <strong><span class="num">${n}</span>${cat.icon} ${esc(p.name)}</strong>${it.fixed ? ' <span class="tag ok">📌 Reserva</span>' : ''}
         ${addressLine(p)}
         ${(it.warnings || []).map((w) => `<div class="small" style="color:var(--max)">⚠️ ${esc(w)}</div>`).join('')}
-        <div class="meta">${it.fixed ? '' : `<span>${badge(it.crowd)}</span>`}${it.wait ? `<span>⏳ ~${it.wait} min de fila</span>` : ''}<span>Hasta las ${fmt(it.end)}</span><span>${PRIORITY_LABEL[p.priority]}</span></div>
+        <div class="meta">${it.fixed ? '' : `<span>${badge(it.crowd)}</span>`}${it.wait ? `<span>⏳ ~${it.wait} min de fila</span>` : ''}<span>Hasta las ${fmt(it.end)}</span><span>${PRIORITY_LABEL[p.priority]}</span>${priceTag(it.cost)}</div>
         <div class="row gap wrap">
           <a class="btn small ghost" target="_blank" rel="noopener" href="${mapsLink(it.from, p, it.travel.how === 'a pie' ? 'walking' : 'transit')}">🧭 Cómo llegar</a>
           <button class="btn small ghost" data-action="visited" data-id="${esc(p.id)}">✅ Ya fui</button>
@@ -388,7 +428,7 @@ function renderPlan() {
     }).join('');
     $('#plan-day').innerHTML = `<div class="card">
       <h3>${DAY_NAMES[day.dow]} ${day.date}</h3>
-      <p class="muted small">Disponible ${fmt(day.start)}–${fmt(day.end)} · 🌇 Atardecer ${fmt(day.sunset)}</p>
+      <p class="muted small">Disponible ${fmt(day.start)}–${fmt(day.end)} · 🌇 Atardecer ${fmt(day.sunset)} · 💶 Gasto del día: ${costText(costSum(day.items))}</p>
       ${day.note ? `<p class="muted">${day.note}</p>` : ''}
       ${rows ? `<ul class="timeline">${rows}</ul>` : '<p class="muted">Nada programado para este día.</p>'}
     </div>`;
@@ -414,9 +454,36 @@ function renderPlan() {
     }
   }
 
-  $('#plan-unscheduled').innerHTML = plan.unscheduled.length ? `<div class="card"><h3>⚠️ No entraron en el plan</h3>
-    <ul>${plan.unscheduled.map((u) => `<li><strong>${esc(u.place.name)}</strong> — <span class="muted">${u.reason}</span></li>`).join('')}</ul></div>` : '';
+  $('#plan-unscheduled').innerHTML = passCard(plan) + (plan.unscheduled.length ? `<div class="card"><h3>⚠️ No entraron en el plan</h3>
+    <ul>${plan.unscheduled.map((u) => `<li><strong>${esc(u.place.name)}</strong> — <span class="muted">${u.reason}</span></li>`).join('')}</ul></div>` : '');
   ui.lastPlan = plan;
+}
+
+// Suma de entradas y comidas (estimado) de una lista de visitas.
+function costSum(items) {
+  let total = 0; let unknown = 0; let estimated = false;
+  for (const it of items) {
+    if (it.type !== 'visit') continue;
+    const c = it.cost;
+    if (!c?.known) { unknown++; continue; }
+    if (c.free) continue;
+    total += c.amount || 0;
+    if (c.range || c.approx) estimated = true;
+  }
+  return { total, unknown, estimated };
+}
+const costText = ({ total, unknown, estimated }) => `${estimated ? '≈ ' : ''}${euro(Math.round(total))}${unknown ? ` + ${unknown} sin precio` : ''}`;
+
+function passCard(plan) {
+  const visits = plan.days.flatMap((d) => d.items.filter((i) => i.type === 'visit').map((i) => ({ ...i, date: d.date })));
+  const a = museumPassAdvice(visits, plan.days.map((d) => d.date));
+  if (!a) return '';
+  const range = `${a.from.slice(8)}/${a.from.slice(5, 7)}${a.to !== a.from ? ` al ${a.to.slice(8)}/${a.to.slice(5, 7)}` : ''}`;
+  return `<div class="card ${a.saving > 0 ? 'hero' : ''}"><h3>🎫 ¿Te conviene el Paris Museum Pass?</h3>
+    ${a.saving > 0
+    ? `<p>✅ <strong>Sí: el pase de ${a.days} días (${euro(a.price)}) te ahorra ≈ ${euro(Math.round(a.saving))}</strong> si lo activas el ${range}. Ahí visitas: ${a.places.map(esc).join(', ')} (${euro(Math.round(a.sum))} por separado).</p>`
+    : `<p>❌ No te conviene: en el mejor tramo pagarías ${euro(Math.round(a.sum))} por separado y el pase más barato cuesta ${euro(MUSEUM_PASS[0].price)}.</p>`}
+    <p class="muted small">Pases de ${MUSEUM_PASS.map((x) => `${x.days} días ${euro(x.price)}`).join(' · ')} (horas consecutivas desde la primera entrada; precios 2026, confírmalos en parismuseumpass.fr). No incluye Torre Eiffel, Catacumbas ni Ópera Garnier. En el Louvre y Versalles igual debes reservar tu franja horaria.</p></div>`;
 }
 
 function planAsText(plan) {
@@ -424,7 +491,7 @@ function planAsText(plan) {
   for (const d of plan.days) {
     lines.push(`${DAY_NAMES[d.dow]} ${d.date}`);
     for (const it of d.items) {
-      if (it.type === 'visit') lines.push(`  ${fmt(it.start)}–${fmt(it.end)} ${it.place.name} (aforo ${crowdLevel(it.crowd).label.toLowerCase()})`);
+      if (it.type === 'visit') lines.push(`  ${fmt(it.start)}–${fmt(it.end)} ${it.place.name} (aforo ${crowdLevel(it.crowd).label.toLowerCase()}${it.cost?.known ? `, ${it.cost.free ? 'gratis' : (it.cost.range ? `${euro(it.cost.range[0])}–${euro(it.cost.range[1])}` : euro(it.cost.amount))}` : ''})`);
       else if (it.type === 'lunch') lines.push(`  ${fmt(it.start)} Almuerzo`);
     }
     lines.push('');
@@ -473,6 +540,7 @@ function renderNow() {
       ${addressLine(p)}
       <p class="muted">${r.reasons.join(' · ')}</p>
       ${r.later ? `<p class="tip">⏰ ${r.later}</p>` : ''}
+      <p class="small">${priceTag(visitCost(p, now.date, r.ev.start, profile()))}</p>
       <p class="muted small">Llegarías ${fmt(r.ev.arrive)} · saldrías ${fmt(r.ev.end)} · cierra ${fmt(hoursOn(p, now.date)[1])}</p>
       ${hero ? crowdBars(p, now.date, now.min) : ''}
       <div class="row gap wrap">

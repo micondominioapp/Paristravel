@@ -1,3 +1,4 @@
+[hidden] { display: none !important; }
 :root {
   --bg: #f6f4ef; --card: #ffffff; --ink: #1d2433; --muted: #667085; --line: #e4e1d8;
   --brand: #1f3a5f; --accent: #c8553d; --gold: #f4c95d;
@@ -121,3 +122,6 @@ nav.bottom button.active { color: var(--accent); }
 .when select, .when input { width: auto; padding: 6px 8px; font-size: .85rem; }
 .when .w-date { flex: 1 1 190px; }
 .added { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+.steps { padding-left: 18px; margin: 6px 0; }
+.steps li { margin: 3px 0; }
+#sync-dot { cursor: pointer; }

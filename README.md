@@ -30,6 +30,17 @@ Precios investigados en noviembre de 2026 en webs oficiales y guías (louvre.fr,
 Visit Paris Region, Centre des monuments nationaux y prensa). Los marcados “aprox.” no se pudieron confirmar en la
 web oficial. **Confirma siempre antes de comprar.**
 
+## Mi viaje en todos mis dispositivos
+
+El viaje se guarda en este mismo repositorio, en el archivo `viaje.json` de la rama **`datos`** (aparte de la app,
+así no se vuelve a publicar la web en cada cambio). **Cualquiera que abra la app ve ese viaje automáticamente**
+(leer es público). Para **guardar cambios** desde un dispositivo, en ✈️ Viaje → “Mi viaje en todos mis dispositivos”
+se pega una clave de GitHub (*fine-grained token*) con acceso solo a este repositorio y permiso
+*Contents: Read and write*; la app trae un enlace que deja el formulario casi rellenado. La app sube los cambios
+sola y busca cambios de otros dispositivos al abrirse, al volver a ella y cada 2 minutos (gana el cambio más reciente).
+
+⚠️ El repositorio es público: el viaje (incluido el nombre del hotel) es visible para cualquiera.
+
 ## Compartir el itinerario
 
 En **🗓️ Plan** (o en **✈️ Viaje**) toca **🔗 Compartir viaje** y envía el enlace por WhatsApp. Quien lo abra
@@ -65,6 +76,7 @@ Abre la URL en el teléfono y elige “Agregar a pantalla de inicio”: funciona
 - `js/match.js` – búsqueda de nombres en varios idiomas.
 - `js/photos.js` – fotos desde Wikipedia/Wikimedia y mapa de respaldo.
 - `js/prices.js` – precios, gratuidades y Paris Museum Pass.
+- `js/sync.js` – sincronización del viaje con GitHub (rama `datos`).
 - `js/share.js` – enlace para compartir el viaje.
 - `js/planner.js` – motor: tiempos de traslado, aforo, puesta de sol, armado del itinerario y recomendaciones.
 - `js/app.js` – interfaz.

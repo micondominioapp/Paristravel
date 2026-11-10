@@ -15,7 +15,7 @@
 <body>
   <header class="top">
     <h1>🗼 París a mi ritmo</h1>
-    <span id="clock" class="clock" title="Hora en París"></span>
+    <span class="clock"><span id="sync-dot" data-tab="trip"></span> <span id="clock" title="Hora en París"></span></span>
   </header>
 
   <main>
@@ -135,6 +135,26 @@
         <div id="hotel-results"></div>
         <button class="btn small ghost" data-action="hotel-here">📍 Estoy en mi hotel: usar mi ubicación</button>
       </form>
+      <div class="card" id="sync-card">
+        <h3>☁️ Mi viaje en todos mis dispositivos</h3>
+        <p id="sync-status" class="small"></p>
+        <p class="small">Tu viaje se guarda en tu repositorio de GitHub. <strong>Cualquiera que abra la app lo ve</strong> automáticamente (tu iPhone, tu Mac, tus acompañantes), sin enviar enlaces. Para <strong>hacer cambios</strong> desde un dispositivo, ese dispositivo necesita tu clave de GitHub (se pide una sola vez).</p>
+        <div class="sync-need-token">
+          <ol class="small steps">
+            <li>Toca <a id="token-link" target="_blank" rel="noopener">🔑 Crear la clave en GitHub</a> (inicia sesión si te lo pide).</li>
+            <li>En <em>Repository access</em> elige <strong>Only select repositories → Paristravel</strong>. El permiso <em>Contents: Read and write</em> ya viene marcado.</li>
+            <li>Toca <strong>Generate token</strong>, copia la clave (empieza por <code>github_pat_</code>) y pégala aquí:</li>
+          </ol>
+          <div class="row gap"><input id="token-input" type="password" placeholder="github_pat_…" autocomplete="off"><button class="btn small" data-action="sync-save-token">Guardar</button></div>
+          <p class="muted small">Hazlo primero en el dispositivo donde está tu viaje completo (tu Mac) y después en tu iPhone.</p>
+        </div>
+        <div class="sync-has-token row gap wrap" hidden>
+          <button class="btn small" data-action="sync-push">☁️ Subir ahora</button>
+          <button class="btn small ghost" data-action="sync-pull">🔄 Traer la última versión</button>
+          <button class="btn small danger" data-action="sync-forget">Quitar clave de este dispositivo</button>
+        </div>
+        <p class="muted small">🔓 Ojo: el repositorio es público, así que el viaje (lugares, fechas y nombre del hotel) lo puede ver cualquiera que abra la app o el repositorio. La clave queda guardada solo en cada dispositivo donde la pegues.</p>
+      </div>
       <div class="card">
         <h3>Datos</h3>
         <p class="muted">Todo se guarda en este teléfono. Para que otra persona vea tu mismo itinerario, envíale el enlace de <strong>Compartir viaje</strong>: al abrirlo se carga tu viaje en su teléfono. Si cambias algo, vuelve a enviarle el enlace.</p>

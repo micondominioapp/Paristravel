@@ -1,8 +1,8 @@
 // Service worker: permite abrir la app sin conexión (en el metro, por ejemplo).
 // Solo guarda los archivos de la app y la librería del mapa; fotos, mapas y búsquedas van directo a internet.
-const CACHE = 'paristravel-v11';
+const CACHE = 'paristravel-v12';
 const SHELL = ['./', 'index.html', 'styles.css', 'js/app.js', 'js/planner.js', 'js/data.js', 'js/osm.js', 'js/share.js',
-  'js/match.js', 'js/photos.js', 'js/prices.js', 'icon.svg', 'manifest.webmanifest'];
+  'js/match.js', 'js/photos.js', 'js/prices.js', 'js/sync.js', 'icon.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

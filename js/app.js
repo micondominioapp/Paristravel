@@ -3,7 +3,8 @@ import { searchPlaces, districtLabel, arrondissement } from './osm.js';
 import { photoKey, resolvePhotos, mapTile } from './photos.js';
 import { basePrice, visitCost, freeOnDate, freeRuleText, freeForText, museumPassAdvice, euro, MUSEUM_PASS } from './prices.js';
 import { placeMatches, nameMatches } from './match.js';
-import { encodeTrip, decodeTrip, shareUrl, codeFromHash } from './share.js';
+import { encodeTrip, decodeTrip, shareUrl, codeFromHash, sharedPart } from './share.js';
+import { repoFromLocation, pullTrip, pushTrip, checkToken, tokenUrl, friendlyError } from './sync.js';
 import {
   PARIS, PRIORITY_LABEL, planTrip, rankNow, parisNow, addDays, fmt, toMin, crowdAt, crowdLevel,
   hoursOn, haversineKm, mapsLink, sunset, dow, splitDateTime, travel, MAX_HOTEL_KM,
@@ -37,6 +38,7 @@ function defaultState() {
     visited: {},
     reports: {},
     replan: null, // { date, min, pos }
+    sync: { updatedAt: 0, sha: null, lastOkAt: 0, error: null, pending: false }, // sincronización con GitHub (local)
   };
 }
 
@@ -50,8 +52,117 @@ function load() {
   } catch { /* estado corrupto o almacenamiento bloqueado */ }
   return defaultState();
 }
+// ---------------- Sincronización entre dispositivos ----------------
+const TOKEN_KEY = 'paristravel.githubToken';
+const REPO = repoFromLocation();
+const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } };
+const deviceName = () => (/iPhone/.test(navigator.userAgent) ? 'iPhone' : /iPad/.test(navigator.userAgent) ? 'iPad' : /Android/.test(navigator.userAgent) ? 'Android' : /Mac/.test(navigator.userAgent) ? 'Mac' : 'otro dispositivo');
+const sharedKey = () => { const { v, ...rest } = sharedPart(state); return JSON.stringify(rest); };
+let pushTimer = null;
+let syncing = false;
+
 function save() {
+  state.sync ||= { updatedAt: 0, sha: null };
+  const key = sharedKey();
+  if (ui.sharedKey !== undefined && key !== ui.sharedKey) { // cambió algo del viaje en este dispositivo
+    state.sync.updatedAt = Date.now();
+    state.sync.pending = true;
+    schedulePush();
+  }
+  ui.sharedKey = key;
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch { /* sin almacenamiento */ }
+}
+
+function schedulePush(delay = 1500) {
+  if (!getToken()) { renderSyncStatus(); return; }
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => pushNow(), delay);
+}
+
+async function pushNow({ manual = false } = {}) {
+  const token = getToken();
+  if (!token || syncing) return;
+  syncing = true;
+  try {
+    const data = { ...sharedPart(state), updatedAt: state.sync.updatedAt || Date.now(), updatedBy: deviceName() };
+    state.sync.sha = await pushTrip(REPO, token, data, state.sync.sha);
+    Object.assign(state.sync, { pending: false, lastOkAt: Date.now(), error: null, noRemote: false });
+    if (manual) toast('☁️ Viaje guardado: ya aparece en tus otros dispositivos');
+  } catch (e) {
+    state.sync.error = friendlyError(e);
+    if (manual) toast(state.sync.error);
+  } finally {
+    syncing = false;
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch { /* */ }
+    renderSyncStatus();
+  }
+}
+
+// Trae el viaje guardado; si es más nuevo que el de este dispositivo, lo usa.
+async function pullNow({ manual = false, force = false } = {}) {
+  if (syncing) return;
+  syncing = true;
+  try {
+    const remote = await pullTrip(REPO, getToken() || null);
+    state.sync.error = null;
+    state.sync.lastOkAt = Date.now();
+    state.sync.noRemote = !remote;
+    if (!remote) {
+      if (manual) toast('Todavía no hay un viaje guardado en la nube');
+      syncing = false;
+      if (getToken() && Object.keys(state.selected).length) pushNow();
+      return;
+    }
+    const r = remote.data;
+    if (force || (r.updatedAt || 0) > (state.sync.updatedAt || 0)) {
+      try { if (!state.sync.updatedAt && Object.keys(state.selected).length) localStorage.setItem('paristravel.backup', JSON.stringify(state)); } catch { /* */ }
+      const d = defaultState();
+      state = { ...state, trip: { ...d.trip, ...r.trip }, selected: r.selected || {}, custom: r.custom || [], visited: r.visited || {}, replan: null };
+      state.sync = { ...state.sync, updatedAt: r.updatedAt || Date.now(), sha: remote.sha, pending: false };
+      ui.sharedKey = sharedKey(); // no es un cambio local
+      ui.day = null;
+      save();
+      render();
+      toast(`🔄 Viaje actualizado${r.updatedBy ? ` (desde ${r.updatedBy})` : ''}`);
+    } else {
+      state.sync.sha = remote.sha;
+      if ((state.sync.updatedAt || 0) > (r.updatedAt || 0) && getToken()) { syncing = false; await pushNow(); return; }
+      if (manual) toast('Ya tienes la última versión del viaje');
+    }
+  } catch (e) {
+    state.sync.error = friendlyError(e);
+    if (manual) toast(state.sync.error);
+  } finally {
+    syncing = false;
+    renderSyncStatus();
+  }
+}
+
+function syncAgo(ms) {
+  if (!ms) return '';
+  const m = Math.round((Date.now() - ms) / 60000);
+  return m < 1 ? 'hace un momento' : m < 60 ? `hace ${m} min` : `a las ${new Date(ms).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+function renderSyncStatus() {
+  const el = document.querySelector('#sync-status');
+  if (!el) return;
+  const sy = state.sync || {};
+  const token = getToken();
+  let html;
+  if (sy.error) html = `<span style="color:var(--max)">⚠️ ${esc(sy.error)}</span>`;
+  else if (token && sy.pending) html = '⏳ Guardando cambios en la nube…';
+  else if (!token && sy.pending) html = '✏️ Tienes cambios <strong>solo en este dispositivo</strong>. Agrega la clave para guardarlos para todos.';
+  else if (sy.noRemote) html = token ? '⏳ Subiendo tu viaje a la nube…' : '☁️ Todavía no hay un viaje guardado en la nube. Pon tu clave abajo (en el dispositivo donde está tu viaje) para guardarlo.';
+  else if (sy.lastOkAt) html = `☁️ Sincronizado ${syncAgo(sy.lastOkAt)}${token ? ' · este dispositivo guarda los cambios' : ' · solo lectura en este dispositivo'}`;
+  else html = '☁️ Aún no sincronizado';
+  el.innerHTML = html;
+  const has = !!token;
+  document.querySelectorAll('.sync-need-token').forEach((x) => { x.hidden = has; });
+  document.querySelectorAll('.sync-has-token').forEach((x) => { x.hidden = !has; });
+  const link = document.querySelector('#token-link'); if (link) link.href = tokenUrl(REPO);
+  const top = document.querySelector('#sync-dot');
+  if (top) { top.textContent = sy.error ? '⚠️' : sy.pending ? '⏳' : sy.lastOkAt ? '☁️' : ''; top.title = el.textContent; }
 }
 
 function toast(msg) {
@@ -607,6 +718,7 @@ function renderNow() {
 
 // ---------------- Pestaña VIAJE ----------------
 function renderTrip() {
+  renderSyncStatus();
   const f = $('#trip-form');
   for (const [k, v] of Object.entries(state.trip)) {
     const el = f.elements[k];
@@ -780,6 +892,40 @@ document.addEventListener('click', async (e) => {
       }
       break;
     }
+    case 'sync-save-token': {
+      const token = $('#token-input').value.trim();
+      if (!token) return toast('Pega la clave de GitHub');
+      try {
+        if (!(await checkToken(REPO, token))) return toast('Esa clave no puede guardar en el repositorio: revisa el permiso Contents: Read and write');
+      } catch (e) { return toast(friendlyError(e)); }
+      try { localStorage.setItem(TOKEN_KEY, token); } catch { return toast('No se pudo guardar la clave en este navegador'); }
+      $('#token-input').value = '';
+      // ¿Ya hay un viaje guardado? Decide cuál queda.
+      let remote = null;
+      try { remote = await pullTrip(REPO, token); } catch { /* sin conexión */ }
+      const mine = Object.keys(state.selected).length;
+      if (remote && mine && JSON.stringify(remote.data.selected) !== JSON.stringify(state.selected)) {
+        const theirs = Object.keys(remote.data.selected || {}).length;
+        const keepMine = confirm(`Ya hay un viaje guardado en la nube (${theirs} lugares${remote.data.updatedBy ? `, desde ${remote.data.updatedBy}` : ''}).\n\nAceptar = subir el de ESTE dispositivo (${mine} lugares) y reemplazarlo.\nCancelar = usar el que está guardado.`);
+        state.sync.sha = remote.sha;
+        if (keepMine) { state.sync.updatedAt = Date.now(); await pushNow({ manual: true }); } else await pullNow({ manual: true, force: true });
+      } else if (remote && !mine) {
+        await pullNow({ manual: true, force: true });
+      } else {
+        state.sync.updatedAt ||= Date.now();
+        await pushNow({ manual: true });
+      }
+      renderSyncStatus();
+      break;
+    }
+    case 'sync-push': state.sync.updatedAt = Date.now(); await pushNow({ manual: true }); break;
+    case 'sync-pull': await pullNow({ manual: true, force: true }); break;
+    case 'sync-forget':
+      if (confirm('¿Quitar la clave de este dispositivo? Seguirás viendo el viaje, pero no podrás guardar cambios desde aquí.')) {
+        try { localStorage.removeItem(TOKEN_KEY); } catch { /* */ }
+        renderSyncStatus();
+      }
+      break;
     case 'export': {
       const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
       const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'mi-viaje-paris.json' });
@@ -854,10 +1000,17 @@ async function loadSharedFromLink() {
 }
 
 // ---------------- Inicio ----------------
+ui.sharedKey = sharedKey();
 tick();
 setInterval(() => { tick(); if (ui.tab === 'now') renderNow(); }, 60000);
 render();
+renderSyncStatus();
 loadSharedFromLink();
+pullNow();
+// Al volver a la app y cada 2 minutos, busca cambios hechos en otros dispositivos.
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pullNow(); });
+setInterval(() => { if (document.visibilityState === 'visible') pullNow(); }, 120000);
+window.addEventListener('online', () => (getToken() && state.sync?.pending ? pushNow() : pullNow()));
 window.addEventListener('hashchange', loadSharedFromLink);
 locate({ quiet: true }).then(() => { if (ui.tab === 'now') renderNow(); });
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

@@ -94,3 +94,4 @@ nav.bottom button.active { color: var(--accent); }
 .tag { display: inline-block; font-size: .72rem; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
 .tag.ok { color: var(--low); border-color: var(--low); }
 .tag.warn { color: var(--high); border-color: var(--high); }
+.controls input.fixed-time { width: auto; padding: 6px 8px; font-size: .85rem; }

@@ -1,9 +1,10 @@
 import { PLACES, CATEGORIES, SLOTS, hours } from './data.js';
 import { searchPlaces } from './osm.js';
+import { placeMatches, nameMatches } from './match.js';
 import { encodeTrip, decodeTrip, shareUrl, codeFromHash } from './share.js';
 import {
   PARIS, PRIORITY_LABEL, planTrip, rankNow, parisNow, addDays, fmt, toMin, crowdAt, crowdLevel,
-  hoursOn, haversineKm, mapsLink, sunset, dow, splitDateTime,
+  hoursOn, haversineKm, mapsLink, sunset, dow, splitDateTime, travel,
 } from './planner.js';
 
 const STORE_KEY = 'paristravel.v1';
@@ -61,7 +62,20 @@ const allPlaces = () => [...PLACES, ...state.custom];
 function chosenPlaces() {
   return allPlaces()
     .filter((p) => state.selected[p.id])
-    .map((p) => ({ ...p, priority: state.selected[p.id].priority ?? 2, slot: state.selected[p.id].slot ?? p.slot }));
+    .map((p) => {
+      const sel = state.selected[p.id];
+      const fixed = sel.fixedDate && sel.fixedTime ? { date: sel.fixedDate, start: toMin(sel.fixedTime) } : null;
+      return { ...p, priority: sel.priority ?? 2, slot: sel.slot ?? p.slot, fixed };
+    });
+}
+
+function tripDates() {
+  const a = splitDateTime(state.trip.arrival).date;
+  const b = splitDateTime(state.trip.departure).date;
+  const out = [];
+  if (!a || !b || b < a) return out;
+  for (let d = a; d <= b && out.length < 60; d = addDays(d, 1)) out.push(d);
+  return out;
 }
 
 // ---------------- Ubicación ----------------
@@ -123,8 +137,7 @@ async function searchAndShow() {
   const q = $('#c-query').value.trim();
   const out = $('#c-results');
   if (q.length < 2) return;
-  const nq = norm(q);
-  const local = allPlaces().filter((p) => norm(p.name).includes(nq) || nq.includes(norm(p.name)));
+  const local = allPlaces().filter((p) => placeMatches(q, p));
   const localHtml = local.map((p) => `<div class="found">
       <h4>${(CATEGORIES[p.category] || CATEGORIES.monumento).icon} ${esc(p.name)}</h4>
       <p class="muted small">Ya está en la app con su horario y aforo.</p>
@@ -136,14 +149,16 @@ async function searchAndShow() {
     let found = await searchPlaces(`${q}, Paris`, month);
     if (!found.length) found = await searchPlaces(q, month);
     const known = new Set(state.custom.map((p) => p.osm));
-    found = found.filter((f, i) => found.findIndex((g) => g.osm === f.osm) === i);
+    found = found.filter((f, i) => found.findIndex((g) => g.osm === f.osm) === i)
+      // Si OpenStreetMap devuelve un lugar que la app ya trae (mismo sitio), no lo repitas.
+      .filter((f) => !allPlaces().some((p) => haversineKm(p, f) < 0.35 && (placeMatches(f.name, p) || placeMatches(f.localName || '', p) || nameMatches(p.name, f.name))));
     ui.found = found;
     out.innerHTML = localHtml + (found.length ? found.map((f, i) => {
       const cat = CATEGORIES[f.category] || CATEGORIES.monumento;
       const tag = f.hoursSource === 'osm' ? '<span class="tag ok">Horario oficial (OpenStreetMap)</span>'
         : '<span class="tag warn">Horario típico estimado: verifícalo</span>';
       return `<div class="found">
-        <h4>${cat.icon} ${esc(f.name)}</h4>
+        <h4>${cat.icon} ${esc(f.name)}${f.localName && f.localName !== f.name ? ` <span class="muted small">(${esc(f.localName)})</span>` : ''}</h4>
         <p class="muted small">${esc(f.address)} · ${cat.label} · ~${f.duration} min</p>
         <p class="week">🕘 ${weekSummary(f.hours)}<br>${tag}</p>
         ${known.has(f.osm) ? '<span class="tag ok">✓ Ya está en tu lista</span>' : `<button class="btn small" data-action="add-found" data-i="${i}">➕ Agregar</button>`}
@@ -205,7 +220,7 @@ function renderPlacesList() {
   const q = ui.query.trim().toLowerCase();
   const list = allPlaces().filter((p) =>
     (ui.cat === 'all' || p.category === ui.cat) &&
-    (!q || p.name.toLowerCase().includes(q)) &&
+    (!q || placeMatches(q, p)) &&
     (!ui.onlySelected || state.selected[p.id]));
 
   $('#places-list').innerHTML = `<p class="muted small">Aforo del ${DAY_NAMES[dow(date)].toLowerCase()} ${date}</p>` + list.map((p) => {
@@ -225,7 +240,16 @@ function renderPlacesList() {
         ${p.custom ? `<p class="small muted">🕘 ${weekSummary(p.hours)} ${p.hoursSource === 'estimado' ? '<span class="tag warn">horario estimado</span>' : p.hoursSource === 'osm' ? '<span class="tag ok">OpenStreetMap</span>' : ''}${p.website ? ` · <a href="${esc(p.website)}" target="_blank" rel="noopener">web</a>` : ''}</p>` : ''}
         ${sel ? `<div class="controls">
           <select data-action="priority" data-id="${esc(p.id)}">${[3, 2, 1].map((v) => `<option value="${v}" ${sel.priority === v ? 'selected' : ''}>${PRIORITY_LABEL[v]}</option>`).join('')}</select>
-          <select data-action="slot" data-id="${esc(p.id)}">${Object.entries(SLOTS).map(([k, l]) => `<option value="${k}" ${(sel.slot ?? p.slot) === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+          ${sel.fixedDate ? '' : `<select data-action="slot" data-id="${esc(p.id)}">${Object.entries(SLOTS).map(([k, l]) => `<option value="${k}" ${(sel.slot ?? p.slot) === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`}
+          <select data-action="fixed-date" data-id="${esc(p.id)}" aria-label="Día de la reserva">
+            <option value="">🕐 Hora: automática</option>
+            ${tripDates().map((d) => `<option value="${d}" ${sel.fixedDate === d ? 'selected' : ''}>📌 ${DAY_SHORT[dow(d)]} ${d.slice(8)}/${d.slice(5, 7)}</option>`).join('')}
+          </select>
+          ${sel.fixedDate ? `<input type="time" class="fixed-time" data-action="fixed-time" data-id="${esc(p.id)}" value="${esc(sel.fixedTime || '')}" aria-label="Hora de la reserva">` : ''}
+        </div>
+        ${sel.fixedDate && !sel.fixedTime ? '<p class="small" style="color:var(--high)">⏰ Pon la hora de tu reserva para fijarla en el plan.</p>' : ''}
+        ${sel.fixedDate && sel.fixedTime ? `<p class="small">📌 Reserva fija: ${DAY_NAMES[dow(sel.fixedDate)].toLowerCase()} ${sel.fixedDate.slice(8)}/${sel.fixedDate.slice(5, 7)} a las ${esc(sel.fixedTime)}. El resto del plan se ordena alrededor.</p>` : ''}
+        <div>
           ${p.custom ? `<button class="btn small danger" data-action="remove-custom" data-id="${esc(p.id)}">Eliminar</button>` : ''}
         </div>` : ''}
       </div>
@@ -288,8 +312,9 @@ function renderPlan() {
       const cat = CATEGORIES[p.category] || CATEGORIES.monumento;
       return `<li><span class="time">${fmt(it.start)}</span><div>
         <div class="travel">🚶 ${it.travel.min} min ${it.travel.how} desde ${esc(it.from.name || 'el punto anterior')}${it.idle ? ` · esperas ${it.idle} min a que abra` : ''}</div>
-        <strong><span class="num">${n}</span>${cat.icon} ${esc(p.name)}</strong>
-        <div class="meta"><span>${badge(it.crowd)}</span>${it.wait ? `<span>⏳ ~${it.wait} min de fila</span>` : ''}<span>Hasta las ${fmt(it.end)}</span><span>${PRIORITY_LABEL[p.priority]}</span></div>
+        <strong><span class="num">${n}</span>${cat.icon} ${esc(p.name)}</strong>${it.fixed ? ' <span class="tag ok">📌 Reserva</span>' : ''}
+        ${(it.warnings || []).map((w) => `<div class="small" style="color:var(--max)">⚠️ ${esc(w)}</div>`).join('')}
+        <div class="meta">${it.fixed ? '' : `<span>${badge(it.crowd)}</span>`}${it.wait ? `<span>⏳ ~${it.wait} min de fila</span>` : ''}<span>Hasta las ${fmt(it.end)}</span><span>${PRIORITY_LABEL[p.priority]}</span></div>
         <div class="row gap wrap">
           <a class="btn small ghost" target="_blank" rel="noopener" href="${mapsLink(it.from, p, it.travel.how === 'a pie' ? 'walking' : 'transit')}">🧭 Cómo llegar</a>
           <button class="btn small ghost" data-action="visited" data-id="${esc(p.id)}">✅ Ya fui</button>
@@ -351,12 +376,24 @@ function renderNow() {
       : `Sin ubicación: uso ${esc((state.trip.hotel || PARIS).name || 'el centro de París')}.`;
   $('#now-status').innerHTML = `${where}<br>${DAY_NAMES[dow(now.date)]} ${fmt(now.min)} en París · 🌇 atardecer ${fmt(sunset(now.date))}`;
 
-  const candidates = chosenPlaces().filter((p) => !state.visited[p.id]);
+  const pendingAll = chosenPlaces().filter((p) => !state.visited[p.id]);
+  const candidates = pendingAll.filter((p) => !p.fixed);
+  const nextFixed = pendingAll.filter((p) => p.fixed && p.fixed.date === now.date && p.fixed.start >= now.min - 15)
+    .sort((a, b) => a.fixed.start - b.fixed.start)[0] || null;
+  let banner = '';
+  if (nextFixed) {
+    const tr = travel(pos, nextFixed, state.trip.mode);
+    const leave = nextFixed.fixed.start - tr.min - 5;
+    banner = `<div class="card hero"><div class="label">📌 Tu próxima reserva</div>
+      <h3>${esc(nextFixed.name)} a las ${fmt(nextFixed.fixed.start)}</h3>
+      <p class="muted">${tr.min} min ${tr.how} · ${leave <= now.min ? '<strong>¡Sal ya!</strong>' : `sal a más tardar a las <strong>${fmt(leave)}</strong>`}</p>
+      <a class="btn small" target="_blank" rel="noopener" href="${mapsLink(pos, nextFixed, tr.how === 'a pie' ? 'walking' : 'transit')}">🧭 Cómo llegar</a></div>`;
+  }
   if (!candidates.length) {
-    $('#now-list').innerHTML = `<div class="card"><p>${Object.keys(state.selected).length ? '🎉 ¡Ya visitaste todo lo que elegiste!' : 'Primero elige qué quieres conocer en <strong>📌 Lugares</strong>.'}</p></div>`;
+    $('#now-list').innerHTML = banner + `<div class="card"><p>${Object.keys(state.selected).length ? '🎉 ¡Ya visitaste todo lo que elegiste!' : 'Primero elige qué quieres conocer en <strong>📌 Lugares</strong>.'}</p></div>`;
     return;
   }
-  const ranked = rankNow(candidates, { pos, date: now.date, min: now.min, mode: state.trip.mode, reports: state.reports });
+  const ranked = rankNow(candidates, { pos, date: now.date, min: now.min, mode: state.trip.mode, reports: state.reports, nextFixed });
   const open = ranked.filter((r) => r.ok);
   const closed = ranked.filter((r) => !r.ok);
   const card = (r, hero) => {
@@ -380,7 +417,7 @@ function renderNow() {
       </div>
     </article>`;
   };
-  $('#now-list').innerHTML =
+  $('#now-list').innerHTML = banner +
     (open.length ? card(open[0], true) + open.slice(1).map((r) => card(r, false)).join('')
       : '<div class="card"><p>Ningún lugar de tu lista está abierto ahora mismo. 😴</p></div>') +
     (closed.length ? `<div class="card"><h3>Ahora no</h3><ul>${closed.map((r) => `<li><strong>${esc(r.place.name)}</strong> — <span class="muted">${r.reason}${r.best ? ` · mejor hoy a las ${fmt(r.best.start)}` : ''}</span></li>`).join('')}</ul></div>` : '');
@@ -560,6 +597,15 @@ document.addEventListener('change', (e) => {
     update();
   } else if (action === 'priority') {
     state.selected[id].priority = Number(el.value); update();
+  } else if (action === 'fixed-date') {
+    if (el.value) state.selected[id].fixedDate = el.value;
+    else { delete state.selected[id].fixedDate; delete state.selected[id].fixedTime; }
+    update();
+    if (el.value && !state.selected[id].fixedTime) document.querySelector(`[data-action=fixed-time][data-id="${CSS.escape(id)}"]`)?.focus();
+  } else if (action === 'fixed-time') {
+    if (el.value) state.selected[id].fixedTime = el.value; else delete state.selected[id].fixedTime;
+    update();
+    if (el.value) toast('📌 Hora fijada: el plan se reordenó');
   } else if (action === 'slot') {
     state.selected[id].slot = el.value; update();
   } else if (el.form?.id === 'trip-form' && el.name) {

@@ -109,6 +109,7 @@ export function placeFromNominatim(r, month) {
   const short = [addr.road && `${addr.house_number ? `${addr.house_number} ` : ''}${addr.road}`, addr.suburb || addr.city_district].filter(Boolean).join(', ');
   return {
     name,
+    localName: r.namedetails?.name || null, // nombre original (en francés)
     address: short || r.display_name.split(',').slice(1, 3).join(',').trim(),
     category,
     lat: Number(r.lat),

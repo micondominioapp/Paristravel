@@ -180,6 +180,7 @@ export function score(place, ev, { date, lunchPending = false, urgency = 0 }) {
 // places: lugares elegidos (con priority/slot/duration ya aplicados)
 // trip: { arrival:'YYYY-MM-DDTHH:MM', departure, hotel:{lat,lng,name}, dayStart, dayEnd, mode, lunch, arrivalBuffer, departureBuffer }
 // opts: { visited:{id:true}, now:{date,min,pos} }  -> replanifica desde ahora y desde tu ubicación
+// Un lugar con hora fija (reserva) lleva place.fixed = { date:'YYYY-MM-DD', start: minutos }.
 export function planTrip(places, trip, opts = {}) {
   const arrival = splitDateTime(trip.arrival);
   const departure = splitDateTime(trip.departure);
@@ -191,8 +192,19 @@ export function planTrip(places, trip, opts = {}) {
   const dates = [];
   for (let d = arrival.date; d <= departure.date; d = addDays(d, 1)) dates.push(d);
 
-  const remaining = places.filter((p) => !opts.visited?.[p.id]);
+  const pending = places.filter((p) => !opts.visited?.[p.id]);
+  const remaining = pending.filter((p) => !p.fixed);
+  const fixedAll = pending.filter((p) => p.fixed);
+  const unscheduled = [];
+  const isLunchSlot = (m) => m >= 11 * 60 + 30 && m <= 14 * 60 + 30;
   const days = [];
+
+  for (const p of fixedAll) {
+    if (!dates.includes(p.fixed.date)) unscheduled.push({ place: p, reason: 'La fecha de la reserva no está dentro de tu viaje' });
+    else if (opts.now && (p.fixed.date < opts.now.date || (p.fixed.date === opts.now.date && p.fixed.start < opts.now.min - 30))) {
+      unscheduled.push({ place: p, reason: `La hora reservada (${fmt(p.fixed.start)}) ya pasó: márcalo como visitado o cambia la hora` });
+    }
+  }
 
   for (let i = 0; i < dates.length; i++) {
     const date = dates[i];
@@ -208,20 +220,36 @@ export function planTrip(places, trip, opts = {}) {
     }
     const day = { date, dow: dow(date), start, end, sunset: sunset(date), items: [] };
     days.push(day);
-    if (end - start < 45) { day.note = 'Día sin tiempo libre para visitas'; continue; }
+    const fixedToday = fixedAll
+      .filter((p) => p.fixed.date === date && !unscheduled.some((u) => u.place === p))
+      .sort((x, y) => x.fixed.start - y.fixed.start);
+    if (end - start < 45 && !fixedToday.length) { day.note = 'Día sin tiempo libre para visitas'; continue; }
 
     const laterDates = dates.slice(i + 1);
     let t = start;
-    let lunchDone = !trip.lunch || start >= 14 * 60 || end <= 13 * 60;
+    let lunchDone = !trip.lunch || start >= 14 * 60 || end <= 13 * 60
+      || fixedToday.some((p) => p.category === 'comida' && isLunchSlot(p.fixed.start));
+    const addFree = (from, to) => {
+      if (to - from < 1) return;
+      const last = day.items[day.items.length - 1];
+      if (last?.type === 'free' && last.end >= from) last.end = to;
+      else day.items.push({ type: 'free', start: from, end: to });
+    };
 
-    while (t < end - 15) {
+    for (;;) {
+      const nf = fixedToday[0];
+      // Hora límite: llegar a tiempo a la próxima reserva, o fin del día.
+      const limit = (q) => (nf ? nf.fixed.start - travel(q, nf, mode).min : end);
+      if (!nf && t >= end - 15) break;
+      if (!lunchDone && t >= 15 * 60 + 30) lunchDone = true; // ya es tarde para almorzar
+
       const lunchTime = !lunchDone && t >= 12 * 60 + 30;
       let best = null;
       for (const p of remaining) {
         const isFood = p.category === 'comida';
         if (lunchTime && !isFood) continue; // a la hora de almorzar solo vale un restaurante de tu lista
         const ev = evaluate(p, { pos, date, t, mode, dayEnd: end });
-        if (!ev.ok) continue;
+        if (!ev.ok || ev.end > limit(p)) continue;
         if (lunchTime && ev.travel.min > 30) continue;
         const openLater = laterDates.filter((d) => hoursOn(p, d)).length;
         const urgency = openLater === 0 ? 80 : openLater === 1 ? 30 : 0;
@@ -234,44 +262,77 @@ export function planTrip(places, trip, opts = {}) {
         }
         if (!best || s > best.s) best = { p, ev, s };
       }
-      if (lunchTime && !best) {
+      if (lunchTime && !best && t + 60 <= limit(pos)) {
         day.items.push({ type: 'lunch', start: t, end: t + 60 });
         t += 60;
         lunchDone = true;
         continue;
       }
-      if (best && best.p.category === 'comida' && best.ev.start >= 11 * 60 + 30 && best.ev.start <= 14 * 60 + 30) lunchDone = true;
-      if (!best) {
-        const last = day.items[day.items.length - 1];
-        if (last?.type === 'free') last.end = Math.min(t + 30, end);
-        else day.items.push({ type: 'free', start: t, end: Math.min(t + 30, end) });
-        t += 30;
+      if (best) {
+        if (best.p.category === 'comida' && isLunchSlot(best.ev.start)) lunchDone = true;
+        day.items.push({ type: 'visit', place: best.p, from: pos, ...best.ev });
+        remaining.splice(remaining.indexOf(best.p), 1);
+        t = best.ev.end;
+        pos = best.p;
         continue;
       }
-      day.items.push({ type: 'visit', place: best.p, from: pos, ...best.ev });
-      remaining.splice(remaining.indexOf(best.p), 1);
-      t = best.ev.end;
-      pos = best.p;
+      if (nf && t + 30 > limit(pos)) {
+        // Nada más cabe antes de la reserva: vamos a ella.
+        const tr = travel(pos, nf, mode);
+        const leaveAt = Math.max(t, nf.fixed.start - tr.min - 5); // llega 5 min antes
+        addFree(t, leaveAt);
+        const arrive = leaveAt + tr.min;
+        const st = Math.max(arrive, nf.fixed.start);
+        const hrs = hoursOn(nf, date);
+        const warnings = [];
+        if (arrive > nf.fixed.start + 5) warnings.push(`Llegarías a las ${fmt(arrive)}, tarde para tu reserva`);
+        if (!hrs || nf.fixed.start < hrs[0] || nf.fixed.start >= hrs[1]) warnings.push('Según el horario que conozco, a esa hora está cerrado: verifícalo');
+        const crowd = crowdAt(nf, date, st);
+        day.items.push({
+          type: 'visit', fixed: true, place: nf, from: pos, travel: tr, arrive, start: st,
+          idle: 0, crowd, wait: 0, end: st + nf.duration, warnings,
+        });
+        fixedToday.shift();
+        t = st + nf.duration;
+        pos = nf;
+        if (nf.category === 'comida' && isLunchSlot(st)) lunchDone = true;
+        continue;
+      }
+      // Tiempo libre (esperando a que algo abra o a la próxima reserva).
+      const step = nf ? Math.min(30, limit(pos) - t) : Math.min(30, end - t);
+      addFree(t, t + step);
+      t += step;
+    }
+    // Entre el fin de lo programado y una reserva: tiempo libre visible; al final del día se recorta.
+    for (let k = 0; k < day.items.length; k++) {
+      const it = day.items[k];
+      if (it.type === 'free' && it.end - it.start < 10) { day.items.splice(k, 1); k--; }
     }
     while (day.items.length && day.items[day.items.length - 1].type === 'free') day.items.pop();
   }
 
   const tripDates = days.map((d) => d.date);
-  const unscheduled = remaining.map((p) => ({
-    place: p,
-    reason: tripDates.some((d) => hoursOn(p, d)) ? 'No cupo en el tiempo disponible: súbele la prioridad o quita otro lugar' : 'Cerrado todos los días de tu viaje',
-  }));
+  for (const p of remaining) {
+    unscheduled.push({
+      place: p,
+      reason: tripDates.some((d) => hoursOn(p, d)) ? 'No cupo en el tiempo disponible: súbele la prioridad o quita otro lugar' : 'Cerrado todos los días de tu viaje',
+    });
+  }
   return { days, unscheduled };
 }
 
 // ---------- Recomendación "¿Qué hago ahora?" ----------
 // reports: { id: { level: 0-1, at: epochMs } } aforo reportado por ti en el lugar (válido 90 min)
-export function rankNow(places, { pos, date, min, mode = 'mixto', reports = {}, nowMs = Date.now() }) {
+// nextFixed: próxima reserva de hoy (lugar con .fixed); no recomienda nada que te haga llegar tarde.
+export function rankNow(places, { pos, date, min, mode = 'mixto', reports = {}, nowMs = Date.now(), nextFixed = null }) {
   return places.map((p) => {
     const r = reports[p.id];
     const fresh = r && nowMs - r.at < 90 * 60 * 1000 ? r.level : undefined;
-    const ev = evaluate(p, { pos, date, t: min, mode, crowdOverride: fresh });
+    let ev = evaluate(p, { pos, date, t: min, mode, crowdOverride: fresh });
     const tr = travel(pos, p, mode);
+    if (ev.ok && nextFixed && nextFixed.id !== p.id && ev.end + travel(p, nextFixed, mode).min > nextFixed.fixed.start) {
+      ev = { ok: false, reason: `Llegarías tarde a tu reserva en ${nextFixed.name} (${fmt(nextFixed.fixed.start)})` };
+    }
     if (!ev.ok) {
       const bt = bestTime(p, date, min + tr.min);
       return { place: p, ok: false, reason: ev.reason, travel: tr, best: bt, score: -1e6 + (PRIORITY_WEIGHT[p.priority] ?? 0) };

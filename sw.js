@@ -1,6 +1,6 @@
 // Service worker: permite abrir la app sin conexión (en el metro, por ejemplo).
-const CACHE = 'paristravel-v3';
-const SHELL = ['./', 'index.html', 'styles.css', 'js/app.js', 'js/planner.js', 'js/data.js', 'js/osm.js', 'js/share.js', 'icon.svg', 'manifest.webmanifest'];
+const CACHE = 'paristravel-v4';
+const SHELL = ['./', 'index.html', 'styles.css', 'js/app.js', 'js/planner.js', 'js/data.js', 'js/osm.js', 'js/share.js', 'js/match.js', 'icon.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

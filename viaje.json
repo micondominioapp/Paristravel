@@ -5,7 +5,7 @@
   "departure": "2026-11-14T19:00",
   "arrivalBuffer": 125,
   "departureBuffer": 240,
-  "dayStart": "09:00",
+  "dayStart": "21:00",
   "dayEnd": "22:00",
   "mode": "mixto",
   "lunch": true,
@@ -752,6 +752,6 @@
   }
  ],
  "visited": {},
- "updatedAt": 1794439523408,
+ "updatedAt": 1794439559978,
  "updatedBy": "Mac"
 }

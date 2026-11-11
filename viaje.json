@@ -12,7 +12,7 @@
   "residency": "eea",
   "age": "adult",
   "origin": "Madrid barajas ",
-  "returnTo": "",
+  "returnTo": "Madrid barajas",
   "arrivalPlace": "ORY",
   "departurePlace": "ORY",
   "people": 1,
@@ -752,6 +752,6 @@
   }
  ],
  "visited": {},
- "updatedAt": 1794439503189,
+ "updatedAt": 1794439513655,
  "updatedBy": "Mac"
 }

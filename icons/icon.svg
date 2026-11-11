@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#16294a"/>
+      <stop offset="0.65" stop-color="#2b4f86"/>
+      <stop offset="1" stop-color="#c8553d"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e9b949"/>
+      <stop offset="0.5" stop-color="#ffdf8a"/>
+      <stop offset="1" stop-color="#d9a032"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <!-- destellos -->
+  <g fill="#fff3c4">
+    <path d="M118 120l6 16 16 6-16 6-6 16-6-16-16-6 16-6z"/>
+    <path d="M392 168l5 12 12 5-12 5-5 12-5-12-12-5 12-5z"/>
+    <path d="M378 82l3 8 8 3-8 3-3 8-3-8-8-3 8-3z" opacity=".8"/>
+    <path d="M150 220l3 8 8 3-8 3-3 8-3-8-8-3 8-3z" opacity=".7"/>
+  </g>
+  <!-- Torre Eiffel -->
+  <g fill="url(#gold)">
+    <rect x="252" y="52" width="8" height="44" rx="3"/>
+    <rect x="243" y="94" width="26" height="12" rx="2"/>
+    <path d="M246 106h20l17 120h-54z"/>
+    <rect x="212" y="224" width="88" height="16" rx="3"/>
+    <path d="M224 240h64l25 78H199z"/>
+    <rect x="176" y="316" width="160" height="20" rx="3"/>
+    <path d="M190 336h132l70 118h-58c-12-46-44-74-78-74s-66 28-78 74h-58z"/>
+  </g>
+  <!-- celosía -->
+  <g stroke="#16294a" stroke-opacity=".45" stroke-width="3" fill="none" stroke-linecap="round">
+    <path d="M249 130l14 24M263 130l-14 24M246 162l20 30M266 162l-20 30M244 198l24 22M268 198l-24 22"/>
+    <path d="M232 252l48 52M280 252l-48 52"/>
+    <path d="M208 346l48 32M304 346l-48 32M174 400l30 30M338 400l-30 30"/>
+  </g>
+  <rect x="96" y="452" width="320" height="10" rx="5" fill="#ffdf8a" opacity=".35"/>
+</svg>

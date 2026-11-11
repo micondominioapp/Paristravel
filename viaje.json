@@ -6,7 +6,7 @@
   "arrivalBuffer": 125,
   "departureBuffer": 240,
   "dayStart": "21:00",
-  "dayEnd": "22:00",
+  "dayEnd": "23:00",
   "mode": "mixto",
   "lunch": true,
   "residency": "eea",
@@ -752,6 +752,6 @@
   }
  ],
  "visited": {},
- "updatedAt": 1794439559978,
+ "updatedAt": 1794439568276,
  "updatedBy": "Mac"
 }

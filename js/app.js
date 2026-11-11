@@ -4,6 +4,8 @@ import { photoKey, resolvePhotos, mapTile } from './photos.js';
 import { basePrice, visitCost, freeOnDate, freeRuleText, freeForText, museumPassAdvice, euro, MUSEUM_PASS } from './prices.js';
 import { placeMatches, nameMatches } from './match.js';
 import { encodeTrip, decodeTrip, shareUrl, codeFromHash, sharedPart } from './share.js';
+import { ARRIVAL_PLACES, transferOptions, recommendedTransfer, arrivalMinutes, departureMinutes, fmtDur, taxiMeter, FARES } from './transport.js';
+import { getApiKey, setApiKey, ask, loadTranscript, clearChat } from './assistant.js';
 import { repoFromLocation, pullTrip, pushTrip, checkToken, tokenUrl, friendlyError } from './sync.js';
 import {
   PARIS, PRIORITY_LABEL, planTrip, rankNow, parisNow, addDays, fmt, toMin, crowdAt, crowdLevel,
@@ -31,6 +33,10 @@ function defaultState() {
       lunch: true,
       residency: 'non-eea',
       age: 'adult',
+      arrivalPlace: 'CDG',
+      departurePlace: 'CDG',
+      people: 1,
+      luggage: 'normal',
       hotel: null,
     },
     selected: {}, // id -> { priority, slot }
@@ -505,7 +511,7 @@ function renderPlacesList() {
         <p class="small"><a href="${gmapsLink(p)}" target="_blank" rel="noopener">📷 Ver fotos y reseñas en Google Maps</a></p>
         ${p.custom ? `<p class="small muted">🕘 ${weekSummary(p.hours)} ${p.hoursSource === 'estimado' ? '<span class="tag warn">horario estimado</span>' : p.hoursSource === 'osm' ? '<span class="tag ok">OpenStreetMap</span>' : ''}${p.website ? ` · <a href="${esc(p.website)}" target="_blank" rel="noopener">web</a>` : ''}</p>` : ''}
         ${sel ? `<div class="controls">
-          <select data-action="priority" data-id="${esc(p.id)}">${[3, 2, 1].map((v) => `<option value="${v}" ${sel.priority === v ? 'selected' : ''}>${PRIORITY_LABEL[v]}</option>`).join('')}</select>
+          <select data-action="priority" data-id="${esc(p.id)}">${[3, 2, 1].map((v) => `<option value="${v}" ${sel.priority === v ? 'selected' : ''}>${PRIORITY_LABEL[v]}${v === 3 ? ' (siempre entra)' : ''}</option>`).join('')}</select>
           ${sel.fixedDate ? '' : `<select data-action="slot" data-id="${esc(p.id)}">${Object.entries(SLOTS).map(([k, l]) => `<option value="${k}" ${(sel.slot ?? p.slot) === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`}
           <select data-action="fixed-date" data-id="${esc(p.id)}" aria-label="Día de la reserva">
             <option value="">🕐 Hora: automática</option>
@@ -597,6 +603,7 @@ function renderPlan() {
     $('#plan-day').innerHTML = `<div class="card">
       <h3>${DAY_NAMES[day.dow]} ${day.date}</h3>
       <p class="muted small">Disponible ${fmt(day.start)}–${fmt(day.end)} · 🌇 Atardecer ${fmt(day.sunset)} · 💶 Gasto del día: ${costText(costSum(day.items))}</p>
+      ${transferNote(day)}
       ${day.note ? `<p class="muted">${day.note}</p>` : ''}
       ${rows ? `<ul class="timeline">${rows}</ul>` : '<p class="muted">Nada programado para este día.</p>'}
     </div>`;
@@ -727,9 +734,179 @@ function renderNow() {
   hydratePhotos($('#now-list'));
 }
 
+// ---------------- Traslados (aeropuerto/estación ↔ alojamiento) ----------------
+const validHotel = () => { const h = state.trip.hotel; return h && haversineKm(h, PARIS) <= MAX_HOTEL_KM ? h : null; };
+const trOpts = (minute) => ({ people: Number(state.trip.people) || 1, luggage: state.trip.luggage || 'normal', minute });
+
+// Calcula solos los minutos de llegada y salida (si no los fijaste a mano).
+function autoBuffers() {
+  const t = state.trip; const h = validHotel() || PARIS;
+  if (t.arrivalPlace && !t.arrivalBufferManual) {
+    const m = arrivalMinutes(t.arrivalPlace, h, trOpts(splitDateTime(t.arrival).min));
+    if (m) t.arrivalBuffer = m;
+  }
+  if (t.departurePlace && !t.departureBufferManual) {
+    const m = departureMinutes(t.departurePlace, h, trOpts(splitDateTime(t.departure).min));
+    if (m) t.departureBuffer = m;
+  }
+}
+
+function gmapsDir(from, to, mode = 'transit') {
+  return `https://www.google.com/maps/dir/?api=1&origin=${from.lat},${from.lng}&destination=${to.lat},${to.lng}&travelmode=${mode}`;
+}
+
+function optionCard(o, from, to) {
+  const price = o.range ? `${euro(o.range[0])}–${euro(o.range[1])}` : euro(o.total);
+  const per = o.perPerson != null && (Number(state.trip.people) || 1) > 1 ? ` <span class="muted small">(${euro(o.perPerson)} c/u)</span>` : '';
+  return `<div class="tr-opt ${o.tags.includes('Recomendado') ? 'rec' : ''} ${o.available ? '' : 'off'}">
+    <h4><span>${o.icon} ${esc(o.name)}</span><span class="price-big">${price}${per}</span></h4>
+    <div class="meta"><span>⏱️ ≈ ${fmtDur(o.minutes)} hasta el alojamiento</span>${o.tags.map((t) => `<span class="tag ${t === 'Recomendado' ? 'brand' : 'ok'}">${t}</span>`).join('')}${o.warn ? `<span class="tag warn">${esc(o.warn)}</span>` : ''}</div>
+    <ol>${o.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
+    <p class="muted small">${esc(o.note || '')}</p>
+    <a class="btn small ghost" target="_blank" rel="noopener" href="${gmapsDir(from, to, o.taxi ? 'driving' : 'transit')}">🗺️ Ver ruta</a>
+  </div>`;
+}
+
+function renderAssistant() {
+  const t = state.trip;
+  const h = validHotel();
+  document.querySelectorAll('#tab-assistant .place-select').forEach((sel) => { sel.value = t.arrivalPlace || ''; });
+  $('#tr-time').value = (t.arrival || '').split('T')[1] || '';
+  $('#tr-people').value = t.people || 1;
+  $('#tr-luggage').value = t.luggage || 'normal';
+  const pl = ARRIVAL_PLACES[t.arrivalPlace];
+  if (!pl) { $('#tr-options').innerHTML = '<p class="muted">Elige dónde llegas para ver las opciones.</p>'; $('#tr-summary').textContent = ''; }
+  else {
+    const dest = h || PARIS;
+    const minute = splitDateTime(t.arrival).min;
+    const opts = transferOptions(t.arrivalPlace, dest, trOpts(minute));
+    $('#tr-summary').innerHTML = `De <strong>${esc(pl.name)}</strong> a <strong>${esc(h ? h.name : 'el centro de París (aún no pusiste tu alojamiento)')}</strong>${minute != null ? `, llegando a las ${fmt(minute)}` : ''}.`;
+    $('#tr-options').innerHTML = opts.map((o) => optionCard(o, pl, dest)).join('');
+  }
+  renderChat();
+}
+
+// Bloque de traslado en el plan (día de llegada y de salida).
+function transferNote(day) {
+  const t = state.trip; const h = validHotel() || PARIS;
+  const a = splitDateTime(t.arrival); const d = splitDateTime(t.departure);
+  let html = '';
+  if (day.date === a.date && ARRIVAL_PLACES[t.arrivalPlace]) {
+    const r = recommendedTransfer(t.arrivalPlace, h, trOpts(a.min));
+    if (r) {
+      const atHotel = a.min + ARRIVAL_PLACES[t.arrivalPlace].exitMin + r.minutes;
+      html += `<div class="plan-transfer">🛬 Llegas a <strong>${esc(ARRIVAL_PLACES[t.arrivalPlace].short)}</strong> a las ${fmt(a.min)} → ${r.icon} ${esc(r.name)} (${r.range ? `${euro(r.range[0])}–${euro(r.range[1])}` : euro(r.total)}, ≈ ${fmtDur(r.minutes)}) → en el alojamiento ≈ ${fmt(atHotel)}. <a href="#" data-tab="assistant">Ver todas las opciones</a></div>`;
+    }
+  }
+  if (day.date === d.date && ARRIVAL_PLACES[t.departurePlace]) {
+    const r = recommendedTransfer(t.departurePlace, h, trOpts(d.min));
+    if (r) {
+      const leave = d.min - Number(t.departureBuffer || 0);
+      html += `<div class="plan-transfer">🧳 Sal hacia <strong>${esc(ARRIVAL_PLACES[t.departurePlace].short)}</strong> a las ${fmt(Math.max(0, leave))} (${ARRIVAL_PLACES[t.departurePlace].kind === 'airport' ? 'vuelo' : 'tren'} a las ${fmt(d.min)}) · ${r.icon} ${esc(r.name)}, ≈ ${fmtDur(r.minutes)}.</div>`;
+    }
+  }
+  return html;
+}
+
+// ---------------- Chat con Claude ----------------
+let chatBusy = false;
+function mdLite(text) {
+  // Formato mínimo y seguro: escapa todo y luego aplica **negrita**, viñetas, enlaces y saltos de línea.
+  const lines = esc(text).split('\n');
+  let html = ''; let inList = false;
+  for (const ln of lines) {
+    const m = ln.match(/^\s*(?:[-*•]|\d+\.)\s+(.*)$/);
+    if (m) { if (!inList) { html += '<ul>'; inList = true; } html += `<li>${m[1]}</li>`; continue; }
+    if (inList) { html += '</ul>'; inList = false; }
+    html += ln.trim() ? `${ln}<br>` : '<br>';
+  }
+  if (inList) html += '</ul>';
+  return html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/(<br>){3,}/g, '<br><br>');
+}
+
+function renderChat() {
+  const has = !!getApiKey();
+  document.querySelectorAll('.chat-need-key').forEach((x) => { x.hidden = has; });
+  document.querySelectorAll('.chat-has-key').forEach((x) => { x.hidden = !has; });
+  if (!has) return;
+  const log = $('#chat-log');
+  if (!chatBusy) {
+    const tr = loadTranscript();
+    log.innerHTML = tr.length ? tr.map((m) => `<div class="msg ${m.role}">${m.role === 'assistant' ? mdLite(m.text) : esc(m.text)}</div>`).join('')
+      : '<div class="msg assistant">¡Hola! Soy Claude. Pregúntame cómo llegar al hotel, qué hacer ahora, dónde comer barato cerca o si hay huelgas hoy.</div>';
+    log.scrollTop = log.scrollHeight;
+  }
+  const pl = ARRIVAL_PLACES[state.trip.arrivalPlace];
+  const chips = [
+    pl ? `Acabo de llegar a ${pl.short}, ¿cómo llego más barato a mi alojamiento?` : '¿Cómo llego más barato a mi alojamiento?',
+    '¿Qué me recomiendas hacer ahora?',
+    '¿Hay huelgas o cortes de metro hoy?',
+    '¿Dónde como bien y barato cerca de aquí?',
+  ];
+  $('#chat-chips').innerHTML = chips.map((c) => `<button class="chip" data-action="chat-chip">${esc(c)}</button>`).join('');
+}
+
+// Contexto que la app manda con cada pregunta (lo que Claude necesita saber de tu viaje ahora mismo).
+function chatContext() {
+  const now = parisNow(); const t = state.trip; const h = validHotel();
+  const lines = [`Hora en París: ${DAY_NAMES[dow(now.date)]} ${now.date} ${fmt(now.min)} (atardecer ${fmt(sunset(now.date))}).`];
+  lines.push(ui.pos ? `Ubicación del viajero: ${ui.pos.lat.toFixed(5)}, ${ui.pos.lng.toFixed(5)}${inParis(ui.pos) ? ' (en París)' : ` (a ${Math.round(haversineKm(ui.pos, PARIS))} km de París)`}.` : 'Ubicación del viajero: desconocida.');
+  lines.push(`Alojamiento: ${h ? `${h.name} (${h.lat.toFixed(5)}, ${h.lng.toFixed(5)})` : 'no indicado'}.`);
+  const pa = ARRIVAL_PLACES[t.arrivalPlace]; const pd = ARRIVAL_PLACES[t.departurePlace];
+  lines.push(`Viaje: llega ${t.arrival?.replace('T', ' ')}${pa ? ` a ${pa.name}` : ''}; se va ${t.departure?.replace('T', ' ')}${pd ? ` desde ${pd.name}` : ''}; ${t.people || 1} persona(s); equipaje ${t.luggage || 'normal'}; precios de ${t.residency === 'eea' ? 'residente UE' : 'no residente UE'}, edad ${t.age || 'adult'}.`);
+  try {
+    const plan = currentPlan(); const today = plan.days?.find((d) => d.date === now.date);
+    const its = today?.items.filter((i) => i.type === 'visit') || [];
+    lines.push(its.length ? `Plan de hoy: ${its.map((i) => `${fmt(i.start)} ${i.place.name}${i.fixed ? ' (reserva)' : ''}${state.visited[i.place.id] ? ' (ya visitado)' : ''}`).join('; ')}.` : 'Plan de hoy: nada programado.');
+  } catch { /* sin plan */ }
+  if (pa) {
+    const opts = transferOptions(t.arrivalPlace, h || PARIS, trOpts(splitDateTime(t.arrival).min)).filter((o) => o.available).slice(0, 4);
+    lines.push(`Traslados calculados por la app desde ${pa.short} al alojamiento: ${opts.map((o) => `${o.name}: ${o.range ? `€${o.range[0]}–${o.range[1]}` : `€${o.total}`} total, ≈${o.minutes} min${o.tags.length ? ` [${o.tags.join(', ')}]` : ''}`).join(' | ')}.`);
+  }
+  lines.push(`Tarifas 2026: billete aeropuerto €${FARES.airport}, metro €${FARES.metro}, bus €${FARES.bus}; taxi precio fijo CDG €56 orilla derecha / €65 izquierda, Orly €45 / €36.`);
+  return lines.join('\n');
+}
+
+async function sendChat(question) {
+  const q = question.trim();
+  if (!q || chatBusy) return;
+  chatBusy = true;
+  $('#chat-input').value = '';
+  $('#chat-send').disabled = true;
+  const log = $('#chat-log');
+  if (log.querySelector('.msg.assistant:only-child')) log.innerHTML = '';
+  const mk = (cls, html) => { const d = document.createElement('div'); d.className = `msg ${cls}`; d.innerHTML = html; log.append(d); return d; };
+  mk('user', esc(q));
+  const status = mk('status', '✍️ Claude está pensando…');
+  const out = mk('assistant', '');
+  out.hidden = true;
+  log.scrollTop = log.scrollHeight;
+  if (!ui.pos) await locate({ quiet: true });
+  let acc = '';
+  try {
+    await ask(q, chatContext(), {
+      onText: (d) => { acc += d; out.hidden = false; status.hidden = true; out.innerHTML = mdLite(acc); log.scrollTop = log.scrollHeight; },
+      onStatus: (msg) => { status.hidden = false; status.textContent = msg; },
+    });
+    status.remove();
+  } catch (e) {
+    status.textContent = `⚠️ ${e.message}`;
+  } finally {
+    chatBusy = false;
+    $('#chat-send').disabled = false;
+    renderChat();
+  }
+}
+
 // ---------------- Pestaña VIAJE ----------------
 function renderTrip() {
   renderSyncStatus();
+  const t0 = state.trip;
+  $('#buffer-hint').textContent = ARRIVAL_PLACES[t0.arrivalPlace]
+    ? `⏱️ ${t0.arrivalBufferManual ? 'Fijado a mano' : 'Calculado solo'}: ${fmtDur(Number(t0.arrivalBuffer) || 0)} desde que aterrizas hasta el alojamiento; sales ${fmtDur(Number(t0.departureBuffer) || 0)} antes de tu ${ARRIVAL_PLACES[t0.departurePlace]?.kind === 'station' ? 'tren' : 'vuelo'}.`
+    : '';
   const f = $('#trip-form');
   for (const [k, v] of Object.entries(state.trip)) {
     const el = f.elements[k];
@@ -747,7 +924,7 @@ function renderTrip() {
 function render() {
   document.querySelectorAll('nav.bottom button').forEach((b) => b.classList.toggle('active', b.dataset.tab === ui.tab));
   document.querySelectorAll('.tab').forEach((s) => { s.hidden = s.id !== `tab-${ui.tab}`; });
-  ({ now: renderNow, plan: renderPlan, places: renderPlaces, trip: renderTrip })[ui.tab]();
+  ({ now: renderNow, plan: renderPlan, places: renderPlaces, trip: renderTrip, assistant: renderAssistant })[ui.tab]();
   renderSyncStatus();
 }
 function update() { save(); render(); }
@@ -851,6 +1028,7 @@ document.addEventListener('click', async (e) => {
     case 'pick-hotel': {
       const r = $('#hotel-results')._results[Number(el.dataset.i)];
       state.trip.hotel = { lat: r.lat, lng: r.lng, name: r.name.split(',').slice(0, 2).join(',') };
+      autoBuffers();
       $('#hotel-results').innerHTML = '';
       update(); toast('Alojamiento guardado');
       break;
@@ -931,6 +1109,39 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'sync-push': state.sync.updatedAt = Date.now(); await pushNow({ manual: true }); break;
+    case 'tr-here': {
+      const out = $('#tr-here-out');
+      out.innerHTML = '<p class="muted">Buscando tu ubicación…</p>';
+      const pos = await locate();
+      const h = validHotel();
+      if (!pos) { out.innerHTML = '<p class="muted">No pude obtener tu ubicación.</p>'; break; }
+      if (!h) { out.innerHTML = '<p class="muted">Primero pon tu alojamiento en ✈️ Viaje.</p>'; break; }
+      if (!inParis(pos)) { out.innerHTML = `<p class="muted">Estás a ${Math.round(haversineKm(pos, PARIS))} km de París. Si llegas a un aeropuerto, usa la sección de arriba.</p>`; break; }
+      const walk = travel(pos, h, 'walk'); const tr = travel(pos, h, 'transit'); const [lo, hi] = taxiMeter(pos, h);
+      const n = Number(state.trip.people) || 1;
+      out.innerHTML = [
+        walk.min <= 25 ? optionCard({ icon: '🚶', name: 'A pie', total: 0, minutes: walk.min, steps: ['Sigue la ruta en el mapa.'], note: 'Gratis.', tags: ['Más barato'], available: true }, pos, h).replace('travelmode=transit', 'travelmode=walking') : '',
+        optionCard({ icon: '🚇', name: 'Metro / bus', total: FARES.metro * n, perPerson: FARES.metro, minutes: tr.min, steps: [`Ticket Metro-Train-RER (€${FARES.metro}) o Navigo Easy.`, 'Toca «Ver ruta» para ver la línea exacta.'], note: '', tags: walk.min > 25 ? ['Más barato'] : [], available: true }, pos, h),
+        optionCard({ icon: '🚕', name: 'Taxi (taxímetro) o Uber', total: Math.round((lo + hi) / 2), range: [lo, hi], minutes: Math.round(tr.km * 3 + 6), steps: ['Taxi en una parada oficial o pídelo por app (G7, Uber, Bolt).'], note: 'Precio aproximado.', taxi: true, tags: [], available: true }, pos, h),
+      ].join('');
+      break;
+    }
+    case 'ai-paste': {
+      try { $('#ai-key').value = (await navigator.clipboard.readText()).trim(); } catch { toast('Mantén presionado el campo y elige «Pegar»'); $('#ai-key').focus(); }
+      break;
+    }
+    case 'ai-save': {
+      const k = $('#ai-key').value.trim();
+      if (!/^sk-ant-/.test(k)) return toast('La clave de la API empieza por sk-ant-');
+      setApiKey(k); $('#ai-key').value = '';
+      renderChat(); toast('✅ Listo: ya puedes preguntarle a Claude');
+      break;
+    }
+    case 'ai-forget':
+      if (confirm('¿Quitar la clave de la API de este dispositivo?')) { setApiKey(''); renderChat(); }
+      break;
+    case 'chat-clear': clearChat(); renderChat(); break;
+    case 'chat-chip': sendChat(el.textContent); break;
     case 'sync-paste': {
       try {
         const txt = (await navigator.clipboard.readText()).trim();
@@ -987,8 +1198,21 @@ document.addEventListener('change', (e) => {
     state.selected[id].slot = el.value; update();
   } else if (el.form?.id === 'trip-form' && el.name) {
     state.trip[el.name] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Number(el.value) : el.value;
+    if (el.name === 'arrivalBuffer') state.trip.arrivalBufferManual = true;
+    if (el.name === 'departureBuffer') state.trip.departureBufferManual = true;
+    if (['arrivalPlace', 'departurePlace', 'people', 'luggage', 'arrival', 'departure'].includes(el.name)) autoBuffers();
     state.replan = null;
     save();
+    renderTrip();
+    for (const k of ['arrivalBuffer', 'departureBuffer']) { const f = el.form.elements[k]; if (f) f.value = state.trip[k]; }
+  } else if (['tr-place', 'tr-time', 'tr-people', 'tr-luggage'].includes(el.id)) {
+    const t = state.trip;
+    if (el.id === 'tr-place') { t.arrivalPlace = el.value; if (!t.departurePlace) t.departurePlace = el.value; }
+    if (el.id === 'tr-time' && el.value) t.arrival = `${splitDateTime(t.arrival).date}T${el.value}`;
+    if (el.id === 'tr-people') t.people = Math.max(1, Number(el.value) || 1);
+    if (el.id === 'tr-luggage') t.luggage = el.value;
+    autoBuffers();
+    update();
   } else if (el.id === 'import-file' && el.files[0]) {
     el.files[0].text().then((txt) => {
       try { const s = JSON.parse(txt); state = { ...defaultState(), ...s, trip: { ...defaultState().trip, ...s.trip } }; update(); toast('Viaje importado'); } catch { toast('Archivo no válido'); }
@@ -996,6 +1220,10 @@ document.addEventListener('change', (e) => {
   }
 });
 
+$('[data-form=chat]').addEventListener('submit', (e) => { e.preventDefault(); sendChat($('#chat-input').value); });
+document.querySelectorAll('.place-select').forEach((sel) => {
+  sel.innerHTML = `<option value="">— Otro / aún no sé —</option>${Object.entries(ARRIVAL_PLACES).map(([k, v]) => `<option value="${k}">${esc(v.name)}</option>`).join('')}`;
+});
 $('[data-form=c-search]').addEventListener('submit', (e) => { e.preventDefault(); searchAndShow(); });
 $('#place-search').addEventListener('input', (e) => { ui.query = e.target.value; renderPlacesList(); });
 

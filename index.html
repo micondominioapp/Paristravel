@@ -6,6 +6,7 @@
   <title>París a mi ritmo</title>
   <meta name="description" content="Planificador de viaje a París: ordena tus visitas según tu ubicación, horarios y aforo estimado.">
   <meta name="theme-color" content="#1f3a5f">
+  <meta name="color-scheme" content="light">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
@@ -102,6 +103,60 @@
       <div id="places-list"></div>
     </section>
 
+    <!-- ASISTENTE -->
+    <section id="tab-assistant" class="tab" hidden>
+      <div class="card">
+        <h2>🛬 Cómo llegar a tu alojamiento</h2>
+        <p class="muted small" id="tr-summary"></p>
+        <div class="grid2">
+          <label>Llego a<select id="tr-place" class="place-select"></select></label>
+          <label>Hora de llegada<input type="time" id="tr-time"></label>
+          <label>Personas<input type="number" id="tr-people" min="1" max="12"></label>
+          <label>Equipaje
+            <select id="tr-luggage">
+              <option value="poca">Poco (mochila)</option>
+              <option value="normal">Normal (1 maleta por persona)</option>
+              <option value="mucha">Mucho (maletas grandes)</option>
+            </select>
+          </label>
+        </div>
+        <div id="tr-options"></div>
+        <p class="muted small">Precios 2026: billete aeropuerto €14 (RER B o metro 14 a Orly), metro €2,55, bus €2,05, taxi con precio fijo CDG €56 / €65 y Orly €45 / €36 según la orilla del Sena. El Roissybus y el Orlybus ya no existen. Confirma horarios en la app Île-de-France Mobilités.</p>
+      </div>
+
+      <div class="card">
+        <h3>📍 Desde donde estoy hasta mi alojamiento</h3>
+        <button class="btn small" data-action="tr-here">📍 Calcular desde mi ubicación</button>
+        <div id="tr-here-out"></div>
+      </div>
+
+      <div class="card" id="chat-card">
+        <h3>💬 Pregúntale a Claude</h3>
+        <p class="muted small">Tu asistente con inteligencia artificial: conoce tu viaje, tu ubicación y tu plan, y busca información actual (huelgas, horarios, precios). Ej.: «Acabo de aterrizar en CDG, ¿cómo llego más barato al hotel?»</p>
+        <div class="chat-need-key">
+          <ol class="small steps">
+            <li>Entra en <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">platform.claude.com → API Keys</a> (con tu cuenta de Claude) y toca <strong>Create Key</strong>.</li>
+            <li>Si te lo pide, añade saldo en <em>Billing</em> (cada pregunta cuesta unos céntimos de dólar).</li>
+            <li>Copia la clave (empieza por <code>sk-ant-</code>) y pégala aquí:</li>
+          </ol>
+          <div class="row gap"><input id="ai-key" type="password" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn small ghost" data-action="ai-paste">📋 Pegar</button><button class="btn small" data-action="ai-save">Guardar</button></div>
+          <p class="muted small">La clave se guarda solo en este dispositivo: no se sube a GitHub ni se comparte con quien abra la app.</p>
+        </div>
+        <div class="chat-has-key" hidden>
+          <div id="chat-log" class="chat-log"></div>
+          <div class="chips" id="chat-chips"></div>
+          <form class="row gap" data-form="chat" onsubmit="return false">
+            <input id="chat-input" placeholder="Escribe tu pregunta…" autocomplete="off" enterkeyhint="send">
+            <button class="btn" type="submit" id="chat-send">Enviar</button>
+          </form>
+          <div class="row gap wrap" style="margin-top:8px">
+            <button class="btn small ghost" data-action="chat-clear">🧹 Nueva conversación</button>
+            <button class="btn small danger" data-action="ai-forget">Quitar clave</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- VIAJE -->
     <section id="tab-trip" class="tab" hidden>
       <form class="card" id="trip-form" onsubmit="return false">
@@ -110,8 +165,19 @@
         <div class="grid2">
           <label>Llegada<input type="datetime-local" name="arrival" required></label>
           <label>Salida<input type="datetime-local" name="departure" required></label>
-          <label>Desde el aeropuerto/estación (min)<input type="number" name="arrivalBuffer" min="0" step="15"></label>
-          <label>Antes de irme necesito (min)<input type="number" name="departureBuffer" min="0" step="15"></label>
+          <label>Llego a<select name="arrivalPlace" class="place-select"></select></label>
+          <label>Me voy desde<select name="departurePlace" class="place-select"></select></label>
+          <label>Personas<input type="number" name="people" min="1" max="12" step="1"></label>
+          <label>Equipaje
+            <select name="luggage">
+              <option value="poca">Poco (mochila)</option>
+              <option value="normal">Normal (1 maleta por persona)</option>
+              <option value="mucha">Mucho (maletas grandes)</option>
+            </select>
+          </label>
+          <label>Desde que aterrizo hasta el hotel (min)<input type="number" name="arrivalBuffer" min="0" step="5"></label>
+          <label>Antes del vuelo/tren salgo del hotel (min)<input type="number" name="departureBuffer" min="0" step="15"></label>
+          <p class="muted small" id="buffer-hint" style="grid-column: 1 / -1"></p>
           <label>Empiezo el día a las<input type="time" name="dayStart"></label>
           <label>Termino el día a las<input type="time" name="dayEnd"></label>
           <label>Precios para
@@ -180,6 +246,7 @@
     <button data-tab="now" class="active">⚡<span>Ahora</span></button>
     <button data-tab="plan">🗓️<span>Plan</span></button>
     <button data-tab="places">📌<span>Lugares</span></button>
+    <button data-tab="assistant">🧭<span>Asistente</span></button>
     <button data-tab="trip">✈️<span>Viaje</span></button>
   </nav>
   <div id="toast" class="toast" hidden></div>

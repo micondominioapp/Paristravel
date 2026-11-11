@@ -30,6 +30,28 @@ Precios investigados en noviembre de 2026 en webs oficiales y guías (louvre.fr,
 Visit Paris Region, Centre des monuments nationaux y prensa). Los marcados “aprox.” no se pudieron confirmar en la
 web oficial. **Confirma siempre antes de comprar.**
 
+## 🧭 Asistente
+
+- **Cómo llegar a tu alojamiento:** eliges dónde llegas (CDG, Orly, Beauvais o una estación de tren/bus), cuántas
+  personas sois y cuánto equipaje llevas, y la app compara todas las opciones con precios 2026 (RER B, bus exprés
+  9517 + metro 14, buses 350/351, Noctilien de noche, metro 14 y tranvía T7 desde Orly, Aérobus desde Beauvais,
+  taxi de precio fijo según la orilla del Sena, Uber), marca la recomendada, la más barata y la más rápida, avisa
+  si a esa hora no funciona y da los pasos y la ruta. Con eso calcula sola cuánto tardas desde que aterrizas hasta
+  el hotel y a qué hora salir hacia el vuelo; ambos aparecen en el plan.
+- **Desde donde estoy hasta mi alojamiento:** a pie, metro o taxi desde tu ubicación.
+- **Pregúntale a Claude:** chat con Claude (modelo `claude-opus-5-5`, con búsqueda web para huelgas, horarios y
+  precios del día). Con cada pregunta la app le pasa la hora, tu ubicación, tu alojamiento, tu llegada, el plan de
+  hoy y los traslados calculados. Necesita una clave de la API de Anthropic (platform.claude.com) que se guarda
+  **solo en ese dispositivo**; cada pregunta cuesta unos céntimos. Si el modelo rechaza una pregunta, la API la
+  reintenta sola con otro modelo (`fallbacks: "default"`). El SDK oficial (`@anthropic-ai/sdk` 1.3.0) va incluido
+  en `js/vendor/` (licencia Apache 2.0).
+
+## Imprescindibles
+
+Lo que marques como **⭐ Imprescindible** siempre entra en el plan: si no cabe, se le hace sitio quitando lo de menor
+prioridad (primero lo de “Si da tiempo”) y lo quitado se intenta llevar a otro día. Si aun así es imposible (cerrado
+todos los días o más largo que tu jornada), el plan explica el motivo.
+
 ## Mi viaje en todos mis dispositivos
 
 El viaje se guarda en este mismo repositorio, en el archivo `viaje.json` de la rama **`datos`** (aparte de la app,
@@ -76,6 +98,8 @@ Abre la URL en el teléfono y elige “Agregar a pantalla de inicio”: funciona
 - `js/match.js` – búsqueda de nombres en varios idiomas.
 - `js/photos.js` – fotos desde Wikipedia/Wikimedia y mapa de respaldo.
 - `js/prices.js` – precios, gratuidades y Paris Museum Pass.
+- `js/transport.js` – traslados aeropuerto/estación ↔ alojamiento (tarifas 2026).
+- `js/assistant.js` – chat con Claude (SDK oficial en `js/vendor/`).
 - `js/sync.js` – sincronización del viaje con GitHub (rama `datos`).
 - `js/share.js` – enlace para compartir el viaje.
 - `js/planner.js` – motor: tiempos de traslado, aforo, puesta de sol, armado del itinerario y recomendaciones.

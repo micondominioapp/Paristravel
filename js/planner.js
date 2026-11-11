@@ -5,7 +5,7 @@ import { freeOnDate, visitCost } from './prices.js';
 export const PARIS = { lat: 48.8566, lng: 2.3522, name: 'Centro de París' };
 export const MAX_HOTEL_KM = 60; // un alojamiento más lejos no puede ser el de este viaje (Versalles está a 17 km)
 export const PRIORITY_WEIGHT = { 3: 300, 2: 150, 1: 60 };
-export const PRIORITY_LABEL = { 3: 'Imprescindible', 2: 'Me gustaría', 1: 'Si da tiempo' };
+export const PRIORITY_LABEL = { 3: '⭐ Imprescindible', 2: 'Me gustaría', 1: 'Si da tiempo' };
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -598,7 +598,7 @@ function planOnce(places, trip, opts = {}) {
 // Puntaje global (menos es mejor): lugares fuera, cercanos separados y penalización de cada día.
 function scoreOf(dayItems, left) {
   let q = 0;
-  for (const p of left) q += p.fixed ? 0 : 400 + (PRIORITY_WEIGHT[p.priority] ?? 150) * 3; // dejar algo fuera es lo peor
+  for (const p of left) q += p.fixed ? 0 : p.priority === 3 ? 20000 : 400 + (PRIORITY_WEIGHT[p.priority] ?? 150) * 3; // dejar algo fuera es lo peor (un imprescindible, muchísimo peor)
   const dayOf = new Map();
   for (const [date, items] of dayItems) {
     q += dayPenalty(items, date);
@@ -692,6 +692,53 @@ function localSearch(plan, budgetMs = 250) {
   plan.unscheduled = [...others, ...plan.unscheduled.filter((u) => left.includes(u.place))];
 }
 
+// Los imprescindibles (prioridad 3) siempre entran: si alguno quedó fuera, se le hace sitio
+// quitando lo de menor prioridad del día donde cueste menos; lo quitado intenta ir a otro día.
+function forceMust(plan, opts) {
+  const days = plan.days.filter((d) => d.ctx);
+  const sim = (d, set) => {
+    const r = runDay({ ...d.ctx, affinity: {}, deferFree: false }, set, null);
+    return r.used.length === set.length ? r : null;
+  };
+  const must = plan.unscheduled.map((u) => u.place).filter((p) => p.priority === 3 && !p.fixed && !p.price?.closed);
+  for (const p of must) {
+    let best = null;
+    for (const d of days) {
+      if (!hoursOn(p, d.date)) continue;
+      const removable = d.used.filter((x) => x.priority !== 3)
+        .sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2) || loadOf(b) - loadOf(a));
+      for (let k = 0; k <= removable.length; k++) {
+        const out = removable.slice(0, k);
+        const set = [...d.used.filter((x) => !out.includes(x)), p];
+        const r = sim(d, set);
+        if (r) {
+          const cost = out.reduce((acc, x) => acc + (PRIORITY_WEIGHT[x.priority] ?? 150), 0) + dayPenalty(r.items, d.date) / 100;
+          if (!best || cost < best.cost) best = { d, r, set, out, cost };
+          break;
+        }
+      }
+    }
+    if (!best) continue;
+    best.d.items = best.r.items; best.d.used = best.r.used;
+    plan.unscheduled = plan.unscheduled.filter((u) => u.place !== p);
+    for (const x of best.out) {
+      plan.unscheduled.push({ place: x, reason: `Se quitó para que entre «${p.name}» (imprescindible)` });
+    }
+  }
+  if (must.length && !opts.noSearch) localSearch(plan, 150); // intenta reubicar lo que se quitó
+  // Explicar por qué un imprescindible no entra ni así.
+  for (const u of plan.unscheduled) {
+    const p = u.place;
+    if (p.priority !== 3 || p.fixed || p.price?.closed) continue;
+    const openDays = days.filter((d) => hoursOn(p, d.date));
+    if (!openDays.length) { u.reason = 'Imprescindible, pero está cerrado todos los días de tu viaje'; continue; }
+    const longest = Math.max(...openDays.map((d) => Math.min(d.ctx.end, hoursOn(p, d.date)[1]) - Math.max(d.ctx.start, hoursOn(p, d.date)[0])));
+    u.reason = longest < p.duration
+      ? `Imprescindible, pero no cabe: necesita ${Math.round(p.duration / 6) / 10} h y como mucho tienes ${Math.max(0, Math.round(longest / 6) / 10)} h con el lugar abierto. Amplía tu horario del día o acorta la visita.`
+      : 'Imprescindible, pero choca con otros imprescindibles o reservas: quita alguno o amplía tus días.';
+  }
+}
+
 // Ordena cada día (2-opt), limpia tiempos libres y pone notas.
 function finalize(plan, opts) {
   for (const day of plan.days) {
@@ -731,6 +778,7 @@ export function planTrip(places, trip, opts = {}) {
   const plan = best.plan;
   plan.variant = best.v;
   if (!opts.noSearch) localSearch(plan, opts.searchMs ?? 250);
+  forceMust(plan, opts);
   return finalize(plan, opts);
 }
 

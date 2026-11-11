@@ -15,7 +15,7 @@
   "returnTo": "Madrid barajas",
   "arrivalPlace": "ORY",
   "departurePlace": "ORY",
-  "people": 1,
+  "people": 2,
   "luggage": "normal",
   "hotel": {
    "lat": 48.8944604,
@@ -752,6 +752,6 @@
   }
  ],
  "visited": {},
- "updatedAt": 1794439513655,
+ "updatedAt": 1794439518391,
  "updatedBy": "Mac"
 }

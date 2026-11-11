@@ -40,7 +40,7 @@
    "priority": 3,
    "slot": "morning",
    "fixedDate": "2026-11-13",
-   "fixedTime": "00:35"
+   "fixedTime": "09:35"
   },
   "custom-1794314520623": {
    "priority": 3
@@ -705,6 +705,6 @@
   }
  ],
  "visited": {},
- "updatedAt": 1794440116747,
+ "updatedAt": 1794440122629,
  "updatedBy": "Mac"
 }

@@ -11,6 +11,12 @@
   "lunch": true,
   "residency": "eea",
   "age": "adult",
+  "origin": "Madrid barajas ",
+  "returnTo": "",
+  "arrivalPlace": "CDG",
+  "departurePlace": "CDG",
+  "people": 1,
+  "luggage": "normal",
   "hotel": {
    "lat": 48.8944604,
    "lng": 2.312371,
@@ -746,6 +752,6 @@
   }
  ],
  "visited": {},
- "updatedAt": 1794431861747,
+ "updatedAt": 1794439495971,
  "updatedBy": "Mac"
 }

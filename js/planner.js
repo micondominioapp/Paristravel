@@ -1,6 +1,7 @@
 // Motor de planificación: tiempos, distancias, aforo estimado y armado del itinerario.
 import { CATEGORY_CURVES, DAY_FACTOR, SEASON_FACTOR } from './data.js';
 import { freeOnDate, visitCost } from './prices.js';
+import { route as metroRoute } from './metro.js';
 
 export const PARIS = { lat: 48.8566, lng: 2.3522, name: 'Centro de París' };
 export const MAX_HOTEL_KM = 60; // un alojamiento más lejos no puede ser el de este viaje (Versalles está a 17 km)
@@ -88,13 +89,14 @@ export function haversineKm(a, b) {
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
-// mode: 'walk' | 'transit' | 'mixto'
+// mode: 'walk' | 'transit' | 'mixto'. El tiempo en transporte sale de la red real de metro/RER/tranvía.
 export function travel(a, b, mode = 'mixto') {
   const km = haversineKm(a, b) * 1.3; // las calles no son línea recta
   const walk = Math.round((km / 4.5) * 60);
-  const transit = Math.round(8 + (km / 22) * 60); // metro/RER incluyendo esperas
   if (mode === 'walk') return { min: walk, how: 'a pie', km };
-  if (mode === 'transit') return { min: walk <= 8 ? walk : transit, how: walk <= 8 ? 'a pie' : 'metro', km };
+  const m = walk > 8 ? metroRoute(a, b) : null;
+  const transit = m ? m.minutes : Math.round(8 + (km / 22) * 60); // sin estaciones cerca: estimación
+  if (mode === 'transit') return walk <= 8 || walk <= transit ? { min: walk, how: 'a pie', km } : { min: transit, how: 'metro', km };
   return walk <= 20 || walk <= transit ? { min: walk, how: 'a pie', km } : { min: transit, how: 'metro', km };
 }
 

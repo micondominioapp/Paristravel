@@ -30,9 +30,21 @@ Precios investigados en noviembre de 2026 en webs oficiales y guías (louvre.fr,
 Visit Paris Region, Centre des monuments nationaux y prensa). Los marcados “aprox.” no se pudieron confirmar en la
 web oficial. **Confirma siempre antes de comprar.**
 
+## 🚇 ¿Caminando o en metro?
+
+Entre cada visita el plan dice qué conviene: **caminar** (si está cerca o el metro casi no ahorra tiempo) o
+**metro/RER/tranvía**, con la ruta exacta: a qué estación caminar, qué línea (con su color), en qué dirección,
+cuántas paradas, dónde cambiar, cuánto tarda y qué billete comprar y cuánto cuesta (€2,55 el ticket Metro-Train-RER,
+que vale para los cambios; €14 si la ruta llega a un aeropuerto; €2,05 el tranvía). Si recomienda caminar, también
+muestra cómo sería en metro. Cada día suma lo que gastas en metro. Los tiempos del plan salen de esta red real.
+
+La red (16 líneas de metro, RER A–E y tranvías, 644 estaciones) se genera con `scripts/build-metro.py` a partir de
+los datos abiertos de **Île-de-France Mobilités** (*emplacement-des-gares-idf* y *traces-du-reseau-ferre-idf*,
+licencia ODbL) y queda en `js/metro-data.js`.
+
 ## 🧭 Asistente
 
-- **Cómo llegar a tu alojamiento:** eliges dónde llegas (CDG, Orly, Beauvais o una estación de tren/bus), cuántas
+- **Cómo llegar a tu alojamiento:** pones de dónde vienes (ej. Madrid-Barajas), eliges en qué aeropuerto de París aterrizas (CDG, Orly, Beauvais o una estación de tren/bus), cuántas
   personas sois y cuánto equipaje llevas, y la app compara todas las opciones con precios 2026 (RER B, bus exprés
   9517 + metro 14, buses 350/351, Noctilien de noche, metro 14 y tranvía T7 desde Orly, Aérobus desde Beauvais,
   taxi de precio fijo según la orilla del Sena, Uber), marca la recomendada, la más barata y la más rápida, avisa
@@ -98,6 +110,7 @@ Abre la URL en el teléfono y elige “Agregar a pantalla de inicio”: funciona
 - `js/match.js` – búsqueda de nombres en varios idiomas.
 - `js/photos.js` – fotos desde Wikipedia/Wikimedia y mapa de respaldo.
 - `js/prices.js` – precios, gratuidades y Paris Museum Pass.
+- `js/metro.js` + `js/metro-data.js` – rutas en metro/RER/tranvía (red real de IDFM).
 - `js/transport.js` – traslados aeropuerto/estación ↔ alojamiento (tarifas 2026).
 - `js/assistant.js` – chat con Claude (SDK oficial en `js/vendor/`).
 - `js/sync.js` – sincronización del viaje con GitHub (rama `datos`).

@@ -4,6 +4,7 @@ import { photoKey, resolvePhotos, mapTile } from './photos.js';
 import { basePrice, visitCost, freeOnDate, freeRuleText, freeForText, museumPassAdvice, euro, MUSEUM_PASS } from './prices.js';
 import { placeMatches, nameMatches } from './match.js';
 import { encodeTrip, decodeTrip, shareUrl, codeFromHash, sharedPart } from './share.js';
+import { compare as compareMove, lineLabel, metroSource } from './metro.js';
 import { ARRIVAL_PLACES, transferOptions, recommendedTransfer, arrivalMinutes, departureMinutes, fmtDur, taxiMeter, FARES } from './transport.js';
 import { getApiKey, setApiKey, ask, loadTranscript, clearChat } from './assistant.js';
 import { repoFromLocation, pullTrip, pushTrip, checkToken, tokenUrl, friendlyError } from './sync.js';
@@ -33,6 +34,8 @@ function defaultState() {
       lunch: true,
       residency: 'non-eea',
       age: 'adult',
+      origin: '',
+      returnTo: '',
       arrivalPlace: 'CDG',
       departurePlace: 'CDG',
       people: 1,
@@ -590,7 +593,7 @@ function renderPlan() {
       const p = it.place;
       const cat = CATEGORIES[p.category] || CATEGORIES.monumento;
       return `<li><span class="time">${fmt(it.start)}</span><div>
-        <div class="travel">🚶 ${it.travel.min} min ${it.travel.how} desde ${esc(it.from.name || 'el punto anterior')}${it.fixed ? ` · <strong>sal a las ${fmt(it.arrive - it.travel.min)}</strong> para llegar ${fmt(it.arrive)}` : (it.idle ? ` · esperas ${it.idle} min a que abra` : '')}</div>
+        ${moveBlock(it.from, p, it.fixed ? ` · <strong>sal a las ${fmt(it.arrive - it.travel.min)}</strong> para llegar ${fmt(it.arrive)}` : (it.idle ? ` · esperas ${it.idle} min a que abra` : ''))}
         <strong><span class="num">${n}</span>${cat.icon} ${esc(p.name)}</strong>${it.fixed ? ' <span class="tag ok">📌 Reserva</span>' : ''}
         ${addressLine(p)}
         ${(it.warnings || []).map((w) => `<div class="small" style="color:var(--max)">⚠️ ${esc(w)}</div>`).join('')}
@@ -602,7 +605,7 @@ function renderPlan() {
     }).join('');
     $('#plan-day').innerHTML = `<div class="card">
       <h3>${DAY_NAMES[day.dow]} ${day.date}</h3>
-      <p class="muted small">Disponible ${fmt(day.start)}–${fmt(day.end)} · 🌇 Atardecer ${fmt(day.sunset)} · 💶 Gasto del día: ${costText(costSum(day.items))}</p>
+      <p class="muted small">Disponible ${fmt(day.start)}–${fmt(day.end)} · 🌇 Atardecer ${fmt(day.sunset)} · 💶 Gasto del día: ${costText(costSum(day.items))}${(() => { const tr = dayTransport(day); return tr.n ? ` + 🚇 metro ${euro(Math.round(tr.total * 100) / 100)} (${tr.n} ${tr.n === 1 ? 'viaje' : 'viajes'})` : ''; })()}</p>
       ${transferNote(day)}
       ${day.note ? `<p class="muted">${day.note}</p>` : ''}
       ${rows ? `<ul class="timeline">${rows}</ul>` : '<p class="muted">Nada programado para este día.</p>'}
@@ -716,6 +719,7 @@ function renderNow() {
       <p class="muted">${r.reasons.join(' · ')}</p>
       ${r.later ? `<p class="tip">⏰ ${r.later}</p>` : ''}
       <p class="small">${priceTag(visitCost(p, now.date, r.ev.start, profile()))}</p>
+      ${moveBlock({ ...pos, name: inParis(ui.pos) ? 'donde estás' : (pos.name || 'tu alojamiento') }, p)}
       <p class="muted small">Llegarías ${fmt(r.ev.arrive)} · saldrías ${fmt(r.ev.end)} · cierra ${fmt(hoursOn(p, now.date)[1])}</p>
       ${hero ? crowdBars(p, now.date, now.min) : ''}
       <div class="row gap wrap">
@@ -780,7 +784,7 @@ function renderAssistant() {
     const dest = h || PARIS;
     const minute = splitDateTime(t.arrival).min;
     const opts = transferOptions(t.arrivalPlace, dest, trOpts(minute));
-    $('#tr-summary').innerHTML = `De <strong>${esc(pl.name)}</strong> a <strong>${esc(h ? h.name : 'el centro de París (aún no pusiste tu alojamiento)')}</strong>${minute != null ? `, llegando a las ${fmt(minute)}` : ''}.`;
+    $('#tr-summary').innerHTML = `${t.origin ? `✈️ ${esc(t.origin)} → ` : ''}De <strong>${esc(pl.name)}</strong> a <strong>${esc(h ? h.name : 'el centro de París (aún no pusiste tu alojamiento)')}</strong>${minute != null ? `, llegando a las ${fmt(minute)}` : ''}.`;
     $('#tr-options').innerHTML = opts.map((o) => optionCard(o, pl, dest)).join('');
   }
   renderChat();
@@ -795,17 +799,49 @@ function transferNote(day) {
     const r = recommendedTransfer(t.arrivalPlace, h, trOpts(a.min));
     if (r) {
       const atHotel = a.min + ARRIVAL_PLACES[t.arrivalPlace].exitMin + r.minutes;
-      html += `<div class="plan-transfer">🛬 Llegas a <strong>${esc(ARRIVAL_PLACES[t.arrivalPlace].short)}</strong> a las ${fmt(a.min)} → ${r.icon} ${esc(r.name)} (${r.range ? `${euro(r.range[0])}–${euro(r.range[1])}` : euro(r.total)}, ≈ ${fmtDur(r.minutes)}) → en el alojamiento ≈ ${fmt(atHotel)}. <a href="#" data-tab="assistant">Ver todas las opciones</a></div>`;
+      html += `<div class="plan-transfer">${t.origin ? `✈️ Desde ${esc(t.origin)} · ` : ''}🛬 Llegas a <strong>${esc(ARRIVAL_PLACES[t.arrivalPlace].short)}</strong> a las ${fmt(a.min)} → ${r.icon} ${esc(r.name)} (${r.range ? `${euro(r.range[0])}–${euro(r.range[1])}` : euro(r.total)}, ≈ ${fmtDur(r.minutes)}) → en el alojamiento ≈ ${fmt(atHotel)}. <a href="#" data-tab="assistant">Ver todas las opciones</a></div>`;
     }
   }
   if (day.date === d.date && ARRIVAL_PLACES[t.departurePlace]) {
     const r = recommendedTransfer(t.departurePlace, h, trOpts(d.min));
     if (r) {
       const leave = d.min - Number(t.departureBuffer || 0);
-      html += `<div class="plan-transfer">🧳 Sal hacia <strong>${esc(ARRIVAL_PLACES[t.departurePlace].short)}</strong> a las ${fmt(Math.max(0, leave))} (${ARRIVAL_PLACES[t.departurePlace].kind === 'airport' ? 'vuelo' : 'tren'} a las ${fmt(d.min)}) · ${r.icon} ${esc(r.name)}, ≈ ${fmtDur(r.minutes)}.</div>`;
+      html += `<div class="plan-transfer">🧳 Sal hacia <strong>${esc(ARRIVAL_PLACES[t.departurePlace].short)}</strong>${(t.returnTo || t.origin) ? ` (vuelo a ${esc(t.returnTo || t.origin)})` : ''} a las ${fmt(Math.max(0, leave))} (${ARRIVAL_PLACES[t.departurePlace].kind === 'airport' ? 'vuelo' : 'tren'} a las ${fmt(d.min)}) · ${r.icon} ${esc(r.name)}, ≈ ${fmtDur(r.minutes)}.</div>`;
     }
   }
   return html;
+}
+
+// ---------------- Caminar o metro (con la ruta y el precio) ----------------
+const lineBadge = (l) => `<span class="line-badge" style="background:${l.color}">${esc(l.line.replace(/^M/, '').replace(/^RER /, ''))}</span>`;
+function metroSteps(m) {
+  return `<ol class="metro-steps">${m.legs.map((l) => (l.type === 'walk'
+    ? `<li>🚶 ${l.min} min a pie hasta ${l.to === 'tu destino' ? 'tu destino' : `<strong>${esc(l.to)}</strong>`}</li>`
+    : `<li>${lineBadge(l)} <strong>${esc(l.label)}</strong> dirección <em>${esc(l.dir.slice(0, 2).join(' / '))}</em>: de ${esc(l.from)} a <strong>${esc(l.to)}</strong> (${l.stops} ${l.stops === 1 ? 'parada' : 'paradas'}, ≈ ${l.min} min)</li>`)).join('')}</ol>
+    <p class="small">🎫 ${esc(m.ticket)}</p>`;
+}
+// Bloque «cómo ir»: recomienda caminar o metro, y si es metro (o lo eliges) dice líneas, dirección y precio.
+function moveBlock(from, to, extra = '') {
+  if (!from || !to) return '';
+  const c = compareMove(from, to);
+  const fromName = esc(from.name || 'el punto anterior');
+  if (!c.metro) return `<div class="travel">🚶 ${c.walk} min a pie desde ${fromName}${extra}</div>`;
+  const m = c.metro;
+  const head = c.best === 'metro'
+    ? `🚇 <strong>Mejor en metro: ${m.minutes} min · ${euro(m.price)}</strong> desde ${fromName} <span class="muted">(a pie, ${c.walk} min)</span>`
+    : `🚶 <strong>Mejor caminando: ${c.walk} min</strong> desde ${fromName} <span class="muted">(en metro, ${m.minutes} min · ${euro(m.price)})</span>`;
+  return `<div class="travel move">${head}${extra}
+    <details ${c.best === 'metro' ? 'open' : ''}><summary>${c.best === 'metro' ? 'Cómo ir en metro' : 'Prefiero ir en metro: ¿cómo?'}</summary>${metroSteps(m)}</details></div>`;
+}
+// Cuánto gastas en transporte en el día (cada tramo en metro = un ticket).
+function dayTransport(day) {
+  let n = 0; let total = 0;
+  for (const it of day.items) {
+    if (it.type !== 'visit' || it.travel?.how !== 'metro') continue;
+    const c = compareMove(it.from, it.place);
+    if (c.metro) { n++; total += c.metro.price; }
+  }
+  return { n, total };
 }
 
 // ---------------- Chat con Claude ----------------
@@ -855,7 +891,7 @@ function chatContext() {
   lines.push(ui.pos ? `Ubicación del viajero: ${ui.pos.lat.toFixed(5)}, ${ui.pos.lng.toFixed(5)}${inParis(ui.pos) ? ' (en París)' : ` (a ${Math.round(haversineKm(ui.pos, PARIS))} km de París)`}.` : 'Ubicación del viajero: desconocida.');
   lines.push(`Alojamiento: ${h ? `${h.name} (${h.lat.toFixed(5)}, ${h.lng.toFixed(5)})` : 'no indicado'}.`);
   const pa = ARRIVAL_PLACES[t.arrivalPlace]; const pd = ARRIVAL_PLACES[t.departurePlace];
-  lines.push(`Viaje: llega ${t.arrival?.replace('T', ' ')}${pa ? ` a ${pa.name}` : ''}; se va ${t.departure?.replace('T', ' ')}${pd ? ` desde ${pd.name}` : ''}; ${t.people || 1} persona(s); equipaje ${t.luggage || 'normal'}; precios de ${t.residency === 'eea' ? 'residente UE' : 'no residente UE'}, edad ${t.age || 'adult'}.`);
+  lines.push(`Viaje: viene desde ${t.origin || 'origen no indicado'}; llega ${t.arrival?.replace('T', ' ')}${pa ? ` a ${pa.name}` : ''}; regresa a ${t.returnTo || t.origin || 'no indicado'}; se va ${t.departure?.replace('T', ' ')}${pd ? ` desde ${pd.name}` : ''}; ${t.people || 1} persona(s); equipaje ${t.luggage || 'normal'}; precios de ${t.residency === 'eea' ? 'residente UE' : 'no residente UE'}, edad ${t.age || 'adult'}.`);
   try {
     const plan = currentPlan(); const today = plan.days?.find((d) => d.date === now.date);
     const its = today?.items.filter((i) => i.type === 'visit') || [];
@@ -1222,7 +1258,8 @@ document.addEventListener('change', (e) => {
 
 $('[data-form=chat]').addEventListener('submit', (e) => { e.preventDefault(); sendChat($('#chat-input').value); });
 document.querySelectorAll('.place-select').forEach((sel) => {
-  sel.innerHTML = `<option value="">— Otro / aún no sé —</option>${Object.entries(ARRIVAL_PLACES).map(([k, v]) => `<option value="${k}">${esc(v.name)}</option>`).join('')}`;
+  const opt = (kind) => Object.entries(ARRIVAL_PLACES).filter(([, v]) => v.kind === kind).map(([k, v]) => `<option value="${k}">${esc(v.name)}</option>`).join('');
+  sel.innerHTML = `<option value="">— Elige —</option><optgroup label="✈️ Aeropuertos de París">${opt('airport')}</optgroup><optgroup label="🚆 Estaciones de tren y bus">${opt('station')}</optgroup>`;
 });
 $('[data-form=c-search]').addEventListener('submit', (e) => { e.preventDefault(); searchAndShow(); });
 $('#place-search').addEventListener('input', (e) => { ui.query = e.target.value; renderPlacesList(); });

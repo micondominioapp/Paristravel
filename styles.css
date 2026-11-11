@@ -136,3 +136,9 @@ nav.bottom button.active { color: var(--accent); }
 .msg.assistant ul { margin: 4px 0; padding-left: 18px; }
 .msg.status { align-self: flex-start; color: var(--muted); font-size: .82rem; background: none; padding: 0 4px; }
 .plan-transfer { background: #f1f6fd; border-radius: 10px; padding: 8px 10px; margin: 6px 0; font-size: .88rem; }
+.line-badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 10px; color: #fff; font-weight: 700; font-size: .72rem; text-shadow: 0 0 2px rgba(0,0,0,.35); vertical-align: middle; }
+.travel.move details { margin: 4px 0 2px; }
+.travel.move summary { color: var(--brand); cursor: pointer; }
+.metro-steps { margin: 4px 0; padding-left: 20px; font-size: .84rem; color: var(--ink); }
+.metro-steps li { margin: 3px 0; }
+.timeline .metro-steps li { display: list-item; grid-template-columns: none; padding: 2px 0; border: 0; gap: 0; }

@@ -109,7 +109,7 @@
         <h2>🛬 Cómo llegar a tu alojamiento</h2>
         <p class="muted small" id="tr-summary"></p>
         <div class="grid2">
-          <label>Llego a<select id="tr-place" class="place-select"></select></label>
+          <label>🛬 Aterrizo en París en<select id="tr-place" class="place-select"></select></label>
           <label>Hora de llegada<input type="time" id="tr-time"></label>
           <label>Personas<input type="number" id="tr-people" min="1" max="12"></label>
           <label>Equipaje
@@ -165,8 +165,17 @@
         <div class="grid2">
           <label>Llegada<input type="datetime-local" name="arrival" required></label>
           <label>Salida<input type="datetime-local" name="departure" required></label>
-          <label>Llego a<select name="arrivalPlace" class="place-select"></select></label>
-          <label>Me voy desde<select name="departurePlace" class="place-select"></select></label>
+          <label>✈️ Vengo desde (aeropuerto de origen)<input name="origin" list="origin-list" placeholder="Ej: Madrid-Barajas (MAD)" autocomplete="off"></label>
+          <label>🛬 Aterrizo en París en<select name="arrivalPlace" class="place-select"></select></label>
+          <label>🛫 Al irme, salgo de París desde<select name="departurePlace" class="place-select"></select></label>
+          <label>🏠 Vuelo de regreso a<input name="returnTo" list="origin-list" placeholder="Igual que el origen" autocomplete="off"></label>
+          <datalist id="origin-list">
+            <option value="Madrid-Barajas (MAD)"></option><option value="Barcelona-El Prat (BCN)"></option><option value="Málaga (AGP)"></option><option value="Valencia (VLC)"></option><option value="Sevilla (SVQ)"></option><option value="Bilbao (BIO)"></option>
+            <option value="Lisboa (LIS)"></option><option value="Londres-Heathrow (LHR)"></option><option value="Roma-Fiumicino (FCO)"></option><option value="Ámsterdam (AMS)"></option>
+            <option value="Ciudad de México (MEX)"></option><option value="Cancún (CUN)"></option><option value="Bogotá-El Dorado (BOG)"></option><option value="Medellín (MDE)"></option><option value="Lima (LIM)"></option><option value="Santiago de Chile (SCL)"></option>
+            <option value="Buenos Aires-Ezeiza (EZE)"></option><option value="São Paulo-Guarulhos (GRU)"></option><option value="Quito (UIO)"></option><option value="Caracas (CCS)"></option><option value="Panamá-Tocumen (PTY)"></option>
+            <option value="San José (SJO)"></option><option value="Santo Domingo (SDQ)"></option><option value="Montevideo (MVD)"></option><option value="Guatemala (GUA)"></option><option value="Miami (MIA)"></option><option value="Nueva York-JFK (JFK)"></option>
+          </datalist>
           <label>Personas<input type="number" name="people" min="1" max="12" step="1"></label>
           <label>Equipaje
             <select name="luggage">
@@ -237,6 +246,7 @@
           <label class="btn small ghost">⬆️ Importar<input type="file" id="import-file" accept="application/json" hidden></label>
           <button class="btn small danger" data-action="reset-visited">Desmarcar visitados</button>
         </div>
+        <p class="muted small">🚇 Rutas de metro, RER y tranvía calculadas con los datos abiertos de Île-de-France Mobilités (licencia ODbL).</p>
         <p class="muted small">⚠️ El aforo es una <strong>estimación</strong> basada en patrones típicos (hora, día, temporada, atardecer y cierres de otros museos). Ningún monumento de París publica aforo en vivo de forma abierta; cuando estés en un lugar puedes reportar cómo está y la app lo usará para recomendarte. Los horarios son aproximados: confírmalos en la web oficial.</p>
       </div>
     </section>

@@ -1,0 +1,751 @@
+{
+ "v": 1,
+ "trip": {
+  "arrival": "2026-11-12T19:30",
+  "departure": "2026-11-14T19:00",
+  "arrivalBuffer": 30,
+  "departureBuffer": 180,
+  "dayStart": "09:00",
+  "dayEnd": "22:00",
+  "mode": "mixto",
+  "lunch": true,
+  "residency": "eea",
+  "age": "adult",
+  "hotel": {
+   "lat": 48.8944604,
+   "lng": 2.312371,
+   "name": "B&B Hotel Paris 17 Batignolles, 4"
+  }
+ },
+ "selected": {
+  "custom-1794314328554": {
+   "priority": 3,
+   "slot": "afternoon",
+   "fixedDate": "2026-11-13",
+   "fixedTime": "15:00"
+  },
+  "custom-1794314418948": {
+   "priority": 3,
+   "slot": "evening",
+   "fixedDate": "2026-11-13",
+   "fixedTime": "09:30"
+  },
+  "trocadero": {
+   "priority": 3
+  },
+  "custom-1794314520623": {
+   "priority": 3
+  },
+  "custom-1794314729021": {
+   "priority": 3
+  },
+  "custom-1794314782068": {
+   "priority": 3
+  },
+  "custom-1794314821044": {
+   "priority": 3
+  },
+  "lafayette": {
+   "priority": 3
+  },
+  "starbucksopera": {
+   "priority": 3
+  },
+  "custom-1794316816177": {
+   "priority": 3,
+   "slot": "afternoon",
+   "fixedDate": "2026-11-14",
+   "fixedTime": "13:00"
+  },
+  "luxembourg": {
+   "priority": 3
+  },
+  "versailles": {
+   "priority": 1
+  },
+  "custom-1794318497025": {
+   "priority": 3,
+   "slot": "morning",
+   "fixedDate": "2026-11-13",
+   "fixedTime": "08:00"
+  },
+  "crucero": {
+   "priority": 3,
+   "slot": "evening",
+   "fixedDate": "2026-11-13",
+   "fixedTime": "20:00"
+  },
+  "custom-1794318950333": {
+   "priority": 3
+  },
+  "custom-1794319198338": {
+   "priority": 1
+  },
+  "garnier": {
+   "priority": 3
+  },
+  "louvre": {
+   "priority": 3
+  },
+  "arc": {
+   "priority": 3
+  },
+  "custom-1794319351926": {
+   "priority": 3,
+   "slot": "afternoon",
+   "fixedDate": "2026-11-14",
+   "fixedTime": "13:00"
+  },
+  "custom-1794321069859": {
+   "priority": 3,
+   "fixedDate": "2026-11-12",
+   "fixedTime": "22:00"
+  },
+  "eiffel": {
+   "priority": 3,
+   "slot": "evening",
+   "fixedDate": "2026-11-12",
+   "fixedTime": "20:00"
+  },
+  "moulinrouge": {
+   "priority": 3
+  }
+ },
+ "custom": [
+  {
+   "name": "Bouillon République",
+   "address": "39 Boulevard du Temple, Paris 3e Arrondissement",
+   "category": "comida",
+   "lat": 48.8660094,
+   "lng": 2.3646451,
+   "duration": 75,
+   "popularity": 0.25,
+   "maxWait": 15,
+   "slot": "any",
+   "hours": [
+    [
+     690,
+     1440
+    ],
+    [
+     690,
+     1440
+    ],
+    [
+     690,
+     1440
+    ],
+    [
+     690,
+     1440
+    ],
+    [
+     690,
+     1440
+    ],
+    [
+     690,
+     1440
+    ],
+    [
+     690,
+     1440
+    ]
+   ],
+   "hoursSource": "osm",
+   "openingHoursRaw": "Mo-Su 11:30-00:00",
+   "website": "https://bouillonlesite.com/",
+   "osm": "node/9537071717",
+   "id": "custom-1794314328554",
+   "custom": true
+  },
+  {
+   "name": "Torre Eiffel",
+   "address": "5 Avenue Anatole France, Paris 7e Arrondissement",
+   "category": "monumento",
+   "lat": 48.8582599,
+   "lng": 2.2945006,
+   "duration": 60,
+   "popularity": 0.83,
+   "maxWait": 20,
+   "slot": "any",
+   "hours": [
+    [
+     570,
+     1425
+    ],
+    [
+     570,
+     1425
+    ],
+    [
+     570,
+     1425
+    ],
+    [
+     570,
+     1425
+    ],
+    [
+     570,
+     1425
+    ],
+    [
+     570,
+     1425
+    ],
+    [
+     570,
+     1425
+    ]
+   ],
+   "hoursSource": "osm",
+   "openingHoursRaw": "09:30-23:45; Jun 21-Sep 02: 09:00-00:45; Jul 14,Jul 15 off",
+   "website": "https://www.toureiffel.paris/",
+   "osm": "way/5013364",
+   "id": "custom-1794314418948",
+   "custom": true
+  },
+  {
+   "name": "Catedral de Notre Dame",
+   "address": "6 Parvis Notre-Dame - Place Jean-Paul II, Paris 4e Arrondissement",
+   "category": "iglesia",
+   "lat": 48.8529371,
+   "lng": 2.3500501,
+   "duration": 40,
+   "popularity": 0.82,
+   "maxWait": 5,
+   "slot": "any",
+   "hours": [
+    [
+     495,
+     1170
+    ],
+    [
+     470,
+     1140
+    ],
+    [
+     470,
+     1140
+    ],
+    [
+     470,
+     1140
+    ],
+    [
+     470,
+     1320
+    ],
+    [
+     470,
+     1140
+    ],
+    [
+     495,
+     1170
+    ]
+   ],
+   "hoursSource": "osm",
+   "openingHoursRaw": "Mo,Tu,We,Fr 07:50-19:00; Th 07:50-22:00; Sa,Su 08:15-19:30",
+   "website": "https://www.notredamedeparis.fr/",
+   "osm": "way/201611261",
+   "id": "custom-1794314520623",
+   "custom": true
+  },
+  {
+   "name": "Barrio Latino",
+   "address": "Barrio Latino",
+   "category": "barrio",
+   "lat": 48.8486028,
+   "lng": 2.3425156,
+   "duration": 90,
+   "popularity": 0.73,
+   "maxWait": 0,
+   "slot": "any",
+   "hours": [
+    [
+     0,
+     1440
+    ],
+    [
+     0,
+     1440
+    ],
+    [
+     0,
+     1440
+    ],
+    [
+     0,
+     1440
+    ],
+    [
+     0,
+     1440
+    ],
+    [
+     0,
+     1440
+    ],
+    [
+     0,
+     1440
+    ]
+   ],
+   "hoursSource": "estimado",
+   "openingHoursRaw": null,
+   "website": null,
+   "osm": "node/2038017580",
+   "id": "custom-1794314729021",
+   "custom": true
+  },
+  {
+   "name": "Basílica del Sagrado Corazón",
+   "address": "Rue du Chevalier de la Barre, Quartier de Clignancourt",
+   "category": "iglesia",
+   "lat": 48.8868058,
+   "lng": 2.3430153,
+   "duration": 40,
+   "popularity": 0.74,
+   "maxWait": 5,
+   "slot": "any",
+   "hours": [
+    [
+     360,
+     1350
+    ],
+    [
+     360,
+     1350
+    ],
+    [
+     360,
+     1350
+    ],
+    [
+     360,
+     1350
+    ],
+    [
+     360,
+     1350
+    ],
+    [
+     360,
+     1350
+    ],
+    [
+     360,
+     1350
+    ]
+   ],
+   "hoursSource": "osm",
+   "openingHoursRaw": "06:00-22:30",
+   "website": "https://www.sacre-coeur-montmartre.com/",
+   "osm": "way/23762981",
+   "id": "custom-1794314782068",
+   "custom": true
+  },
+  {
+   "name": "Moulin Rouge",
+   "address": "82 Boulevard de Clichy, Paris 18e Arrondissement",
+   "category": "monumento",
+   "lat": 48.8841094,
+   "lng": 2.3323564,
+   "duration": 60,
+   "popularity": 0.74,
+   "maxWait": 20,
+   "slot": "any",
+   "hours": [
+    [
+     600,
+     1080
+    ],
+    [
+     600,
+     1080
+    ],
+    [
+     600,
+     1080
+    ],
+    [
+     600,
+     1080
+    ],
+    [
+     600,
+     1080
+    ],
+    [
+     600,
+     1080
+    ],
+    [
+     600,
+     1080
+    ]
+   ],
+   "hoursSource": "estimado",
+   "openingHoursRaw": null,
+   "website": "https://www.moulinrouge.fr/",
+   "osm": "node/252969214",
+   "id": "custom-1794314821044",
+   "custom": true
+  },
+  {
+   "name": "Au P’tit Grec",
+   "localName": "Au P’tit Grec",
+   "address": "Rue Cujas",
+   "category": "comida",
+   "lat": 48.8477075,
+   "lng": 2.3424643,
+   "duration": 75,
+   "popularity": 0.25,
+   "maxWait": 15,
+   "slot": "any",
+   "hours": [
+    null,
+    [
+     630,
+     1140
+    ],
+    [
+     630,
+     1140
+    ],
+    [
+     630,
+     1140
+    ],
+    [
+     630,
+     1140
+    ],
+    [
+     630,
+     1140
+    ],
+    [
+     630,
+     1140
+    ]
+   ],
+   "hoursSource": "osm",
+   "openingHoursRaw": "Mo-Sa 10:30-19:00",
+   "postcode": "75005",
+   "arrondissement": 5,
+   "city": "París",
+   "website": null,
+   "wikipedia": null,
+   "wikidata": null,
+   "image": null,
+   "osm": "node/7214147321",
+   "id": "custom-1794316816177",
+   "custom": true
+  },
+  {
+   "name": "Carette",
+   "localName": "Carette",
+   "address": "Place du Trocadéro et du 11 Novembre 1918",
+   "category": "comida",
+   "lat": 48.8637238,
+   "lng": 2.2872368,
+   "duration": 75,
+   "popularity": 0.25,
+   "maxWait": 15,
+   "slot": "any",
+   "hours": [
+    [
+     450,
+     1440
+    ],
+    [
+     450,
+     1440
+    ],
+    [
+     450,
+     1440
+    ],
+    [
+     450,
+     1440
+    ],
+    [
+     450,
+     1440
+    ],
+    [
+     450,
+     1440
+    ],
+    [
+     450,
+     1440
+    ]
+   ],
+   "hoursSource": "osm",
+   "openingHoursRaw": "Mo-Su 07:30-24:00",
+   "price": {
+    "range": [
+     25,
+     50
+    ],
+    "unit": "por persona",
+    "estimate": true
+   },
+   "postcode": "75116",
+   "arrondissement": 16,
+   "city": "París",
+   "website": null,
+   "wikipedia": null,
+   "wikidata": null,
+   "image": null,
+   "osm": "node/932276881",
+   "id": "custom-1794318497025",
+   "custom": true
+  },
+  {
+   "name": "Palais Royal",
+   "localName": "Palais Royal",
+   "address": "Rue Jean-Louis Debré, Quartier du Palais Royal",
+   "category": "monumento",
+   "lat": 48.8635847,
+   "lng": 2.3362042,
+   "duration": 60,
+   "popularity": 0.76,
+   "maxWait": 20,
+   "slot": "any",
+   "hours": [
+    [
+     600,
+     1080
+    ],
+    [
+     600,
+     1080
+    ],
+    [
+     600,
+     1080
+    ],
+    [
+     600,
+     1080
+    ],
+    [
+     600,
+     1080
+    ],
+    [
+     600,
+     1080
+    ],
+    [
+     600,
+     1080
+    ]
+   ],
+   "hoursSource": "estimado",
+   "openingHoursRaw": null,
+   "price": null,
+   "postcode": "75001",
+   "arrondissement": 1,
+   "city": "París",
+   "website": null,
+   "wikipedia": "fr:Palais-Royal",
+   "wikidata": "Q329948",
+   "image": null,
+   "osm": "relation/3300400",
+   "id": "custom-1794318950333",
+   "custom": true
+  },
+  {
+   "name": "La Crème de Paris",
+   "localName": "La Crème de Paris",
+   "address": "Quai Saint-Michel",
+   "category": "comida",
+   "lat": 48.8530213,
+   "lng": 2.3465993,
+   "duration": 75,
+   "popularity": 0.25,
+   "maxWait": 15,
+   "slot": "any",
+   "hours": [
+    [
+     720,
+     1380
+    ],
+    [
+     720,
+     1380
+    ],
+    [
+     720,
+     1380
+    ],
+    [
+     720,
+     1380
+    ],
+    [
+     720,
+     1380
+    ],
+    [
+     720,
+     1380
+    ],
+    [
+     720,
+     1380
+    ]
+   ],
+   "hoursSource": "estimado",
+   "openingHoursRaw": null,
+   "price": {
+    "range": [
+     5,
+     15
+    ],
+    "unit": "por persona",
+    "estimate": true
+   },
+   "postcode": "75005",
+   "arrondissement": 5,
+   "city": "París",
+   "website": null,
+   "wikipedia": null,
+   "wikidata": null,
+   "image": null,
+   "osm": "node/1109398663",
+   "id": "custom-1794319198338",
+   "custom": true
+  },
+  {
+   "name": "Cédric et la chocolaterie",
+   "localName": "Cédric et la chocolaterie",
+   "address": "Rue Danielle Casanova, Gaillon",
+   "category": "compras",
+   "lat": 48.8677656,
+   "lng": 2.3332817,
+   "duration": 45,
+   "popularity": 0.25,
+   "maxWait": 0,
+   "slot": "any",
+   "hours": [
+    null,
+    [
+     600,
+     1170
+    ],
+    [
+     600,
+     1170
+    ],
+    [
+     600,
+     1170
+    ],
+    [
+     600,
+     1170
+    ],
+    [
+     600,
+     1170
+    ],
+    [
+     600,
+     1170
+    ]
+   ],
+   "hoursSource": "estimado",
+   "openingHoursRaw": null,
+   "price": {
+    "free": true,
+    "estimate": true,
+    "options": [
+     "Entrar es gratis"
+    ]
+   },
+   "postcode": "75001",
+   "arrondissement": 1,
+   "city": "París",
+   "website": null,
+   "wikipedia": null,
+   "wikidata": null,
+   "image": null,
+   "osm": "node/4454451610",
+   "id": "custom-1794319351926",
+   "custom": true
+  },
+  {
+   "name": "Mangez et Cassez-vous",
+   "localName": "Mangez et Cassez-vous",
+   "address": "Avenue Jean Jaurès",
+   "category": "comida",
+   "lat": 48.8881971,
+   "lng": 2.3915678,
+   "duration": 75,
+   "popularity": 0.25,
+   "maxWait": 15,
+   "slot": "any",
+   "hours": [
+    [
+     705,
+     1440
+    ],
+    [
+     705,
+     1440
+    ],
+    [
+     705,
+     1440
+    ],
+    [
+     705,
+     1440
+    ],
+    [
+     705,
+     1440
+    ],
+    [
+     705,
+     1440
+    ],
+    [
+     705,
+     1440
+    ]
+   ],
+   "hoursSource": "osm",
+   "openingHoursRaw": "11:45-24:00",
+   "price": {
+    "range": [
+     25,
+     50
+    ],
+    "unit": "por persona",
+    "estimate": true
+   },
+   "postcode": "75019",
+   "arrondissement": 19,
+   "city": "París",
+   "website": null,
+   "wikipedia": null,
+   "wikidata": null,
+   "image": null,
+   "osm": "node/10858130335",
+   "id": "custom-1794321069859",
+   "custom": true
+  }
+ ],
+ "visited": {},
+ "updatedAt": 1794431861747,
+ "updatedBy": "Mac"
+}

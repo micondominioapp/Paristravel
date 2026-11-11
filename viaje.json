@@ -3,8 +3,8 @@
  "trip": {
   "arrival": "2026-11-12T19:30",
   "departure": "2026-11-14T19:00",
-  "arrivalBuffer": 85,
-  "departureBuffer": 195,
+  "arrivalBuffer": 125,
+  "departureBuffer": 240,
   "dayStart": "09:00",
   "dayEnd": "22:00",
   "mode": "mixto",
@@ -16,7 +16,7 @@
   "arrivalPlace": "ORY",
   "departurePlace": "ORY",
   "people": 2,
-  "luggage": "normal",
+  "luggage": "poca",
   "hotel": {
    "lat": 48.8944604,
    "lng": 2.312371,
@@ -752,6 +752,6 @@
   }
  ],
  "visited": {},
- "updatedAt": 1794439518391,
+ "updatedAt": 1794439523408,
  "updatedBy": "Mac"
 }

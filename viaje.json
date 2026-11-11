@@ -37,7 +37,8 @@
    "fixedTime": "09:30"
   },
   "trocadero": {
-   "priority": 3
+   "priority": 3,
+   "slot": "morning"
   },
   "custom-1794314520623": {
    "priority": 3
@@ -702,6 +703,6 @@
   }
  ],
  "visited": {},
- "updatedAt": 1794439843742,
+ "updatedAt": 1794440110416,
  "updatedBy": "Mac"
 }

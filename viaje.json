@@ -4,7 +4,7 @@
   "arrival": "2026-11-12T19:30",
   "departure": "2026-11-14T19:00",
   "arrivalBuffer": 85,
-  "departureBuffer": 225,
+  "departureBuffer": 195,
   "dayStart": "09:00",
   "dayEnd": "22:00",
   "mode": "mixto",
@@ -14,7 +14,7 @@
   "origin": "Madrid barajas ",
   "returnTo": "",
   "arrivalPlace": "ORY",
-  "departurePlace": "CDG",
+  "departurePlace": "ORY",
   "people": 1,
   "luggage": "normal",
   "hotel": {
@@ -752,6 +752,6 @@
   }
  ],
  "visited": {},
- "updatedAt": 1794439498620,
+ "updatedAt": 1794439503189,
  "updatedBy": "Mac"
 }

@@ -48,9 +48,6 @@
   "custom-1794314782068": {
    "priority": 3
   },
-  "custom-1794314821044": {
-   "priority": 3
-  },
   "lafayette": {
    "priority": 3
   },
@@ -351,53 +348,6 @@
    "website": "https://www.sacre-coeur-montmartre.com/",
    "osm": "way/23762981",
    "id": "custom-1794314782068",
-   "custom": true
-  },
-  {
-   "name": "Moulin Rouge",
-   "address": "82 Boulevard de Clichy, Paris 18e Arrondissement",
-   "category": "monumento",
-   "lat": 48.8841094,
-   "lng": 2.3323564,
-   "duration": 60,
-   "popularity": 0.74,
-   "maxWait": 20,
-   "slot": "any",
-   "hours": [
-    [
-     600,
-     1080
-    ],
-    [
-     600,
-     1080
-    ],
-    [
-     600,
-     1080
-    ],
-    [
-     600,
-     1080
-    ],
-    [
-     600,
-     1080
-    ],
-    [
-     600,
-     1080
-    ],
-    [
-     600,
-     1080
-    ]
-   ],
-   "hoursSource": "estimado",
-   "openingHoursRaw": null,
-   "website": "https://www.moulinrouge.fr/",
-   "osm": "node/252969214",
-   "id": "custom-1794314821044",
    "custom": true
   },
   {
@@ -752,6 +702,6 @@
   }
  ],
  "visited": {},
- "updatedAt": 1794439678535,
+ "updatedAt": 1794439843742,
  "updatedBy": "Mac"
 }

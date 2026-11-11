@@ -26,6 +26,7 @@
   <main>
     <!-- AHORA -->
     <section id="tab-now" class="tab">
+      <div id="cloud-banner-now"></div>
       <div class="card">
         <div class="row between">
           <div>
@@ -50,6 +51,7 @@
             <button class="btn ghost" data-action="copy-plan">📋 Copiar texto</button>
           </div>
         </div>
+        <div id="cloud-banner"></div>
         <p class="muted" id="plan-summary"></p>
         <div id="day-tabs" class="chips"></div>
       </div>
@@ -150,7 +152,7 @@
             <li>En <em>Repository access</em> elige <strong>Only select repositories → Paristravel</strong>. El permiso <em>Contents: Read and write</em> ya viene marcado.</li>
             <li>Toca <strong>Generate token</strong>, copia la clave (empieza por <code>github_pat_</code>) y pégala aquí:</li>
           </ol>
-          <div class="row gap"><input id="token-input" type="password" placeholder="github_pat_…" autocomplete="off"><button class="btn small" data-action="sync-save-token">Guardar</button></div>
+          <div class="row gap"><input id="token-input" type="password" placeholder="github_pat_…" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn small ghost" data-action="sync-paste">📋 Pegar</button><button class="btn small" data-action="sync-save-token">Guardar</button></div>
           <p class="muted small">Hazlo primero en el dispositivo donde está tu viaje completo (tu Mac) y después en tu iPhone.</p>
         </div>
         <div class="sync-has-token row gap wrap" hidden>

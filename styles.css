@@ -125,3 +125,5 @@ nav.bottom button.active { color: var(--accent); }
 .steps { padding-left: 18px; margin: 6px 0; }
 .steps li { margin: 3px 0; }
 #sync-dot { cursor: pointer; }
+.info-box { background: #e8f0fb; color: #1f3a5f; border-radius: 10px; padding: 10px; margin: 6px 0; font-size: .9rem; }
+@media (prefers-color-scheme: dark) { .info-box { background: #1c2a40; color: #cfe0f7; } }

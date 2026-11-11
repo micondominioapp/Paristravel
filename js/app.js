@@ -87,7 +87,7 @@ async function pushNow({ manual = false } = {}) {
     const data = { ...sharedPart(state), updatedAt: state.sync.updatedAt || Date.now(), updatedBy: deviceName() };
     state.sync.sha = await pushTrip(REPO, token, data, state.sync.sha);
     Object.assign(state.sync, { pending: false, lastOkAt: Date.now(), error: null, noRemote: false });
-    if (manual) toast('☁️ Viaje guardado: ya aparece en tus otros dispositivos');
+    if (manual) toast('✅ Viaje guardado en la nube: ábrelo en tu iPhone y aparecerá solo');
   } catch (e) {
     state.sync.error = friendlyError(e);
     if (manual) toast(state.sync.error);
@@ -161,8 +161,19 @@ function renderSyncStatus() {
   document.querySelectorAll('.sync-need-token').forEach((x) => { x.hidden = has; });
   document.querySelectorAll('.sync-has-token').forEach((x) => { x.hidden = !has; });
   const link = document.querySelector('#token-link'); if (link) link.href = tokenUrl(REPO);
+  // Aviso visible en Plan/Ahora cuando el viaje no está en la nube.
+  const hasTrip = Object.keys(state.selected || {}).length > 0;
+  const dev = deviceName();
+  let banner = '';
+  if (!token && hasTrip && (sy.noRemote || sy.pending)) {
+    banner = `<div class="warn-box">☁️ <strong>Este viaje está guardado solo en este ${esc(dev)}.</strong> Para verlo también en tus otros dispositivos, guárdalo en la nube (una sola vez, 2 minutos).
+      <div style="margin-top:6px"><button class="btn small" data-action="goto-sync">☁️ Guardarlo en la nube</button></div></div>`;
+  } else if (!hasTrip && sy.noRemote) {
+    banner = `<div class="info-box">📭 Todavía no hay ningún viaje guardado en la nube. Si armaste tu plan en otro dispositivo (iPad, Mac…), ábrelo allí, ve a <strong>✈️ Viaje → ☁️ Mi viaje en todos mis dispositivos</strong> y guárdalo. Aparecerá aquí solo.</div>`;
+  }
+  for (const id of ['#cloud-banner', '#cloud-banner-now']) { const b = document.querySelector(id); if (b) b.innerHTML = banner; }
   const top = document.querySelector('#sync-dot');
-  if (top) { top.textContent = sy.error ? '⚠️' : sy.pending ? '⏳' : sy.lastOkAt ? '☁️' : ''; top.title = el.textContent; }
+  if (top) { top.textContent = sy.error || banner.includes('warn-box') ? '⚠️' : sy.pending ? '⏳' : sy.lastOkAt && !sy.noRemote ? '☁️' : ''; top.title = el.textContent; }
 }
 
 function toast(msg) {
@@ -737,6 +748,7 @@ function render() {
   document.querySelectorAll('nav.bottom button').forEach((b) => b.classList.toggle('active', b.dataset.tab === ui.tab));
   document.querySelectorAll('.tab').forEach((s) => { s.hidden = s.id !== `tab-${ui.tab}`; });
   ({ now: renderNow, plan: renderPlan, places: renderPlaces, trip: renderTrip })[ui.tab]();
+  renderSyncStatus();
 }
 function update() { save(); render(); }
 
@@ -896,7 +908,7 @@ document.addEventListener('click', async (e) => {
       const token = $('#token-input').value.trim();
       if (!token) return toast('Pega la clave de GitHub');
       try {
-        if (!(await checkToken(REPO, token))) return toast('Esa clave no puede guardar en el repositorio: revisa el permiso Contents: Read and write');
+        if (!(await checkToken(REPO, token))) return toast('La clave no puede guardar: al crearla elige “Only select repositories → Paristravel” y el permiso Contents: Read and write');
       } catch (e) { return toast(friendlyError(e)); }
       try { localStorage.setItem(TOKEN_KEY, token); } catch { return toast('No se pudo guardar la clave en este navegador'); }
       $('#token-input').value = '';
@@ -919,6 +931,20 @@ document.addEventListener('click', async (e) => {
       break;
     }
     case 'sync-push': state.sync.updatedAt = Date.now(); await pushNow({ manual: true }); break;
+    case 'sync-paste': {
+      try {
+        const txt = (await navigator.clipboard.readText()).trim();
+        if (!txt) return toast('No hay nada copiado');
+        $('#token-input').value = txt;
+        if (!/^(github_pat_|ghp_)/.test(txt)) toast('Eso no parece una clave de GitHub (empieza por github_pat_)');
+      } catch { toast('Mantén presionado el campo y elige “Pegar”'); $('#token-input').focus(); }
+      break;
+    }
+    case 'goto-sync': {
+      ui.tab = 'trip'; render();
+      setTimeout(() => document.querySelector('#sync-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      break;
+    }
     case 'sync-pull': await pullNow({ manual: true, force: true }); break;
     case 'sync-forget':
       if (confirm('¿Quitar la clave de este dispositivo? Seguirás viendo el viaje, pero no podrás guardar cambios desde aquí.')) {

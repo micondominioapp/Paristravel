@@ -704,7 +704,11 @@
    "custom": true
   }
  ],
- "visited": {},
- "updatedAt": 1794440133327,
+ "visited": {
+  "lafayette": true,
+  "starbucksopera": true,
+  "custom-1794314782068": true
+ },
+ "updatedAt": 1794676500348,
  "updatedBy": "Mac"
 }

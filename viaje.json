@@ -707,8 +707,10 @@
  "visited": {
   "lafayette": true,
   "starbucksopera": true,
-  "custom-1794314782068": true
+  "custom-1794314782068": true,
+  "arc": true,
+  "custom-1794314729021": true
  },
- "updatedAt": 1794676500348,
+ "updatedAt": 1794676503383,
  "updatedBy": "Mac"
 }
